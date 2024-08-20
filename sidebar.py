@@ -10,10 +10,10 @@ def sidebar():
         st.markdown(
             "## Example use cases\n"
             "1. How can I contact the professor?\n" 
-            "2. What's a parameter in Python function\n"
-            "3. How to use my own module in Colab? \n"
-            "4. How to fix the error in my code? \n"
-            "5. Give me a practice question on Python functions\n"
+            "2. What's standard deviation\n"
+            "3. How to implement regression? \n"
+            "4. How to interpret mean in a business context \n"
+            "5. Give me a practice question on ...\n"
         )
         # st.markdown("---")
         st.markdown(
@@ -23,13 +23,9 @@ def sidebar():
             "3. Query about specific task.\n"
         )
         st.markdown("---")
-        st.markdown("# About")
+        st.markdown("# Disclaimer")
         st.markdown(
-            '''📖 Virtual TA allows you to ask questions about course logistics, 
-            as well as any Python coding questions.'''
-        )
-        st.markdown(
-            "This tool is a work in progress. "
+            '''📖 Virtual TA is a work in progress. It is designed to assist students with their queries. Please make sure DO NOT include any personal information in your queries. '''
         )
         st.markdown("Made by Dr.Wenjun Gu (wenjun.gu@emory.edu)")
        
