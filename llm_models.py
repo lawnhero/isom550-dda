@@ -2,9 +2,7 @@
 # Allows more flexibility in the models
 
 from langchain_anthropic import ChatAnthropic
-from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
-from langchain_community.chat_models import ChatOllama
 
 # define a class of chat models
 class LLMModels():
