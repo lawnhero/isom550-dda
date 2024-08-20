@@ -76,31 +76,5 @@ class LLMModels():
             )
         return claude_opus
     
-    # define groq mixtral
-    def groq_mixtral(self, temperature=0.5):
-        model = ChatGroq(
-            model_name='mixtral-8x7b-32768',
-            temperature=temperature,
-            # max_tokens=self.max_tokens,
-            )
-        return model
-    
-    # define groq llama3
-    def groq_llama3(self, temperature=0.5):
-        model = ChatGroq(
-            model_name='llama3-70b-8192',
-            temperature=temperature,
-            # max_tokens=self.max_tokens,
-            )
-        return model
-    
-    def llama3(self, temperature=0.5):
-        model = ChatOllama(
-            model='llama3:latest',
-            base_url="http://localhost:11434",
-            temperature=temperature,
-            # max_tokens=self.max_tokens,
-            )
-        return model
  
     
