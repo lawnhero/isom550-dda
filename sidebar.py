@@ -7,6 +7,12 @@ def clear_chat_history():
 def sidebar():
     with st.sidebar:
         
+        st.markdown("# Disclaimer")
+        st.markdown(
+            '''📖 Virtual TA is a work in progress. It is designed to assist students with their queries. Please make sure DO NOT include any personal information in your queries. '''
+        )
+        st.markdown("Made by Dr.Wenjun Gu (wenjun.gu@emory.edu)")
+        st.markdown("---")
         st.markdown(
             "## Example use cases\n"
             "1. How can I contact the professor?\n" 
@@ -22,12 +28,6 @@ def sidebar():
             "2. Try your questions in different ways.\n"
             "3. Query about specific task.\n"
         )
-        st.markdown("---")
-        st.markdown("# Disclaimer")
-        st.markdown(
-            '''📖 Virtual TA is a work in progress. It is designed to assist students with their queries. Please make sure DO NOT include any personal information in your queries. '''
-        )
-        st.markdown("Made by Dr.Wenjun Gu (wenjun.gu@emory.edu)")
        
 
         # api_key_input = st.text_input(
