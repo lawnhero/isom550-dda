@@ -46,7 +46,7 @@ gpt4o = LLMModels().openai_gpt4o(temperature=0)
 # llm = LLMModels().openai_gpt35(temperature=0)
 
 # 3 Setup the various chains to perform various functions
-
+step_chain = chains.step_chain(sonnet35, retriever)
 # 3b. Setup LLMChain & prompts for RAG answer generation
 rag_chain = chains.rag_chain(sonnet35, retriever)
 
@@ -64,7 +64,7 @@ def main():
     # Set up the radio button toggle with descriptions on both sides
     option = st.radio(
         label="Choose an option:",
-        options=["In-Class", "After-Class"],  # Replace with your actual options
+        options=["In-Class", "Assignment", "Course Logistics"],  # Replace with your actual options
         index=0,  # Default selected option
         horizontal=True  # Display options horizontally
     ).lower()
@@ -109,7 +109,11 @@ def main():
                 ai_response = st.write_stream(
                     chat_chain.stream(input={'query': user_query, 
                                                'chat_history': st.session_state.chat_history}))
-        
+
+            if option == "assignment":       
+                ai_response = st.write_stream(
+                    step_chain.stream(input=user_query))
+                
             # model option is RAG for the course    # 
             else:                
                 ai_response = st.write_stream(

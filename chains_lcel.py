@@ -94,11 +94,10 @@ def rag_chain(llm, retriever):
     
     Before generating a response, think step by step and adhere to the following guidelines:
     1. Read the retrieved context carefully and understand the content.
-    2. Develop a step by step plan to answer the query based on the context.
-    3. Generate a response that guides the student to complete the task.
+    2. Generate a response that best answer the query.
     
-    You will follow the Socratic method. Your response should be concise and helpful, and adhere to the guidelines provided:
-    - generate response in business context when possible,
+    Your response should be direct, concise and helpful, and adhere to the guidelines provided:
+    - Answer the query directly
     - Say "I don't know" when the answer is not available in the context. 
     - Limit response in 300 tokens or less.
     - Format the output when possible for better visual.
@@ -122,6 +121,45 @@ def rag_chain(llm, retriever):
     #     "query": itemgetter("query"),
     #     "chat_history": itemgetter("chat_history"),
     # }
+    )
+
+    chain = setup_retrieval | prompt | llm | output_parser
+
+    return chain
+
+# 3c. Setup LLMChain & prompts for practice answer generation
+def step_chain(llm, retriever):
+    template = """
+    You are a virtual TA Dayton for MBA data analytics course in Goizueta Business School. Your task is to guide students step by step to complete student query delimited by <query> tag. You will generate the response ONLY based on retrieved context delimited by <context> tag. 
+    
+    Before generating a response, think step by step and adhere to the following guidelines:
+    1. Read the retrieved context carefully and understand the content.
+    2. Develop a step by step plan to answer the query based on the context.
+    3. Generate a response that guides the student to complete the task.
+    
+    You will follow the Socratic method. Your response should be concise and helpful, and adhere to the guidelines provided:
+    - First provide the retrieved context as what has been discussed in class
+    - generate a step-by-step to address the query
+    - Help students make progress in the task
+    - generate response in business context when possible,
+    - Say "I don't know" when the answer is not available in the context. 
+    - Limit response in 300 tokens or less.
+    - Format the output when possible for better visual.
+
+    Query: <query>{query}</query>
+
+    Retrieved context: <context>{context}</context>
+
+    Your response:
+    """
+    # 
+    # Please generate an appropriate response. Format the output when possible. 
+
+    prompt = ChatPromptTemplate.from_template(template)
+    setup_retrieval = RunnableParallel(
+        {"context": retriever,
+         "query": RunnablePassthrough(),
+         }
     )
 
     chain = setup_retrieval | prompt | llm | output_parser
