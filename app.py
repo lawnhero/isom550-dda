@@ -65,16 +65,18 @@ def main():
     option = st.radio(
         label="Choose an option:",
         options=["In-Class", "Assignment", "Course Logistics"],  # Replace with your actual options
-        index=0,  # Default selected option
+        index=1,  # Default selected option
         horizontal=True  # Display options horizontally
     ).lower()
     # Display the selected option
     # st.write(f"You selected: {option}")
 
     if "in-class" in option:
-        initial_text = "Hello there. How can I help you with the in-class activity today? "
+        initial_text = "What question about data analytics do you have today? "
+    elif "assignment" in option:
+        initial_text = "What would you like to work on today? "
     else:
-        initial_text = "Hello there. How can I help you with the assignment today? "
+        initial_text = "Hello there. What can I tell you about the course? "
 
     # Initialize chat history in session state
     if "chat_history" not in st.session_state:
