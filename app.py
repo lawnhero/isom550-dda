@@ -30,11 +30,14 @@ def load_db(db_path, embedding_model='text-embedding-ada-002'):
     return db_loaded
 
 # 1. Load the Vectorised database
-kb_db_path = 'data/emb_db'
-db = load_db(kb_db_path)
+course_path = 'data/course'
+contents_path = 'data/contents'
+course_db = load_db(course_path)
+contents_db = load_db(contents_path)
 
 # 2. Function for similarity search
-retriever = db.as_retriever()
+retriever_course = course_db.as_retriever()
+retriever_contents = contents_db.as_retriever() 
 
 # 3. Setup LLM and chains
 # initialize the llm
@@ -46,9 +49,9 @@ gpt4o = LLMModels().openai_gpt4o(temperature=0)
 # llm = LLMModels().openai_gpt35(temperature=0)
 
 # 3 Setup the various chains to perform various functions
-step_chain = chains.step_chain(sonnet35, retriever)
+step_chain = chains.step_chain(sonnet35, retriever_contents)
 # 3b. Setup LLMChain & prompts for RAG answer generation
-rag_chain = chains.rag_chain(sonnet35, retriever)
+rag_chain = chains.rag_chain(sonnet35, retriever_course)
 
 # 3c. Setup direct openai_chain
 # chat_chain = chains.class_chain(llm_gpt35)
