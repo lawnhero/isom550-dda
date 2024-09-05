@@ -1,15 +1,12 @@
 import streamlit as st
 from langchain_community.vectorstores import FAISS
-from langchain.prompts import PromptTemplate
 from langchain_openai import OpenAIEmbeddings
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage
 
 from langchain.globals import set_verbose
-import chains_lcel as chains
-from sidebar import sidebar
-from llm_models import LLMModels
+import utils.chains_lcel as chains
+from utils.sidebar import sidebar
+from utils.llm_models import LLMModels
 
 # Enable verbose logging
 set_verbose(True)
@@ -19,21 +16,13 @@ st.set_page_config(
         page_title="ISOM 550 DDA Virtual TA - Beta", page_icon="🔍", layout="wide")
 
 # cache the vectorized embedding database 
-@st.cache_resource
-# load the vectorized database
-def load_db(db_path, embedding_model='text-embedding-ada-002'):
-    embeddings = OpenAIEmbeddings(model=embedding_model, chunk_size=1)
-    db_loaded = FAISS.load_local(db_path, embeddings,
-                                 allow_dangerous_deserialization=True
-                                 )
-    
-    return db_loaded
+from utils.utils import load_db
 
 # 1. Load the Vectorised database
 course_path = 'data/course'
 contents_path = 'data/contents'
-course_db = load_db(course_path)
-contents_db = load_db(contents_path)
+course_db = load_db(db_path=course_path)
+contents_db = load_db(db_path=contents_path)
 
 # 2. Function for similarity search
 retriever_course = course_db.as_retriever()

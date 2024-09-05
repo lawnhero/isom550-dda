@@ -11,3 +11,6 @@ etc/
 .*
 !.gitignore
 !/data/
+
+# Ignore the trial file
+trial.ipynb

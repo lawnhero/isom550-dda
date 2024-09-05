@@ -8,8 +8,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.chat_models import ChatOllama
 from langchain.globals import set_verbose
 
-import chains_lcel as chains
-from sidebar import sidebar
+import utils.chains_lcel as chains
+from utils.sidebar import sidebar
 
 # Enable verbose logging
 set_verbose(True)
