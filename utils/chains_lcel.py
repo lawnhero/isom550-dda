@@ -4,18 +4,36 @@
 from langchain_core.prompts import ChatPromptTemplate
 # from langchain_core.output_parsers import StrOutputParser, json_output_parser
 
-# On Aug 2024, the output_parser is moved to langchain_core.output_parsers.string
-from langchain_core.output_parsers.string import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from operator import itemgetter
 
+from typing import Dict, Any, Optional
+from langchain_core.pydantic_v1 import BaseModel, Field
+from langchain.schema.language_model import BaseLanguageModel
+
 output_parser = StrOutputParser()
+
+json_parser = JsonOutputParser()
+
+
+def _create_chain(template: str, output_parser: Any, llm: Optional[BaseLanguageModel] = None) -> Any:
+    """Create a generic chain with the given template, output parser, and LLM."""
+    prompt = ChatPromptTemplate.from_template(template)
+    setup = RunnableParallel(
+        {key: RunnablePassthrough() for key in prompt.input_variables}
+    )
+    chain_llm = llm         
+    return setup | prompt | chain_llm | output_parser
+
+    # return _create_chain(router_template, json_parser, llm)
+
 
 
 # define the router chain
 def router_chain(llm):
-    query_router_template = """
+    template = """
     You are an AI query router for a coding course in business school. 
     The following is a user query: {query}. Based on the content of this query, determine its category according to the guidelines provided:
 
@@ -26,13 +44,7 @@ def router_chain(llm):
     Output the classification number without any additional text or explanation.
     """
 
-    router_prompt = ChatPromptTemplate.from_template(query_router_template)
-    setup = RunnableParallel(
-        {"query": RunnablePassthrough()}
-    )
-    router_chain = setup | router_prompt | llm | output_parser
-
-    return router_chain
+    return _create_chain(template, output_parser, llm)
 
 def query_analysis_chain(llm):
     template = """
@@ -49,7 +61,7 @@ def query_analysis_chain(llm):
 
 # define the openai chain
 def class_chain(llm):
-    query_template = """
+    template = """
     You are a virtual teaching assistant name Dayton, for a MBA Data and Decision Analytics course. You facilitate the instructor with in-class activities that encourages analytical and critical thinking. Your task is to answer student query about data or decision analytics delimited by <query> tag. You should consider the chat history when relevant. Your response should be relevant and concise.
     
     before generating a response think step by step and adhere to the following guidelines:
@@ -76,17 +88,7 @@ def class_chain(llm):
 
     """
 
-    prompt = ChatPromptTemplate.from_template(query_template)
-
-    setup = RunnableParallel(
-        {"query": RunnablePassthrough(),
-         "chat_history": RunnablePassthrough(),
-         }
-    )
-
-    chain = setup | prompt | llm | output_parser
-
-    return chain
+    return _create_chain(template, output_parser, llm)
 
 # 3b. Setup LLMChain & prompts for RAG answer generation
 def rag_chain(llm, retriever):
@@ -113,21 +115,7 @@ def rag_chain(llm, retriever):
     # 
     # Please generate an appropriate response. Format the output when possible. 
 
-    prompt = ChatPromptTemplate.from_template(template)
-    setup_retrieval = RunnableParallel(
-        {"context": retriever,
-         "query": RunnablePassthrough(),
-         }
-    #     {
-    #     "context": itemgetter("query") | retriever,
-    #     "query": itemgetter("query"),
-    #     "chat_history": itemgetter("chat_history"),
-    # }
-    )
-
-    chain = setup_retrieval | prompt | llm | output_parser
-
-    return chain
+    return _create_chain(template, output_parser, llm)
 
 # 3c. Setup LLMChain & prompts for practice answer generation
 def step_chain(llm, retriever):
@@ -154,18 +142,7 @@ def step_chain(llm, retriever):
     Your response:
     """
     # 
-    # Please generate an appropriate response. Format the output when possible. 
-
-    prompt = ChatPromptTemplate.from_template(template)
-    setup_retrieval = RunnableParallel(
-        {"context": retriever,
-         "query": RunnablePassthrough(),
-         }
-    )
-
-    chain = setup_retrieval | prompt | llm | output_parser
-
-    return chain
+    return _create_chain(template, output_parser, llm)
 
 # define chat history chain
 # 3d. Setup LLMChain & prompts for RAG answer generation

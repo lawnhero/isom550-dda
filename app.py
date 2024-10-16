@@ -16,17 +16,19 @@ st.set_page_config(
         page_title="ISOM 550 DDA Virtual TA - Beta", page_icon="🔍", layout="wide")
 
 # cache the vectorized embedding database 
-from utils.utils import load_db
+from utils.utils import load_db, query_db_connection, process_and_store_query
 
 # 1. Load the Vectorised database
 course_path = 'data/course'
 contents_path = 'data/contents'
 course_db = load_db(db_path=course_path)
 contents_db = load_db(db_path=contents_path)
-
-# 2. Function for similarity search
 retriever_course = course_db.as_retriever()
 retriever_contents = contents_db.as_retriever() 
+
+# 2. MongoDB Atlas connection
+mongo_db = query_db_connection()
+collection = mongo_db['ISOM 550']
 
 # 3. Setup LLM and chains
 # initialize the llm
@@ -39,11 +41,7 @@ gpt4o = LLMModels().openai_gpt4o(temperature=0)
 
 # 3 Setup the various chains to perform various functions
 step_chain = chains.step_chain(sonnet35, retriever_contents)
-# 3b. Setup LLMChain & prompts for RAG answer generation
 rag_chain = chains.rag_chain(sonnet35, retriever_course)
-
-# 3c. Setup direct openai_chain
-# chat_chain = chains.class_chain(llm_gpt35)
 chat_chain = chains.class_chain(sonnet35)
         
 # 5. Build an app with streamlit
@@ -95,6 +93,9 @@ def main():
         # display user query
         with st.chat_message("Human"):
             st.markdown(user_query)
+        
+        # save to MongoDB database
+        process_and_store_query(collection, query=user_query)
 
         # Generate AI response based on user query
         with st.chat_message("AI", avatar="🦜"):
