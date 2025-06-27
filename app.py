@@ -45,10 +45,11 @@ claude_sonnet = llms.claude_sonnet_with_fallback
 claude_haiku = llms.claude_haiku_with_fallback
 gpt4o = llms.openai_gpt4o
 
-# 3 Setup the various chains to perform various functions
-step_chain = chains.step_chain(claude_sonnet, retriever_contents)
-rag_chain = chains.rag_chain(claude_haiku, retriever_course)
-class_chain = chains.class_chain(claude_sonnet)
+# 3. Setup the various chains using the organized structure
+all_chains = chains.get_all_chains(claude_sonnet, claude_haiku, retriever_course, retriever_contents)
+step_chain = all_chains['step_chain']
+rag_chain = all_chains['rag_chain']  
+class_chain = all_chains['class_chain']
         
 # 5. Build an app with streamlit
 def main():
