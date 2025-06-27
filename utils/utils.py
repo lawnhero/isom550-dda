@@ -11,8 +11,8 @@ kb_db_path = 'data/emb_db'
 
 @st.cache_resource
 # load the vectorized database
-def load_db(db_path=kb_db_path, embedding_model='text-embedding-ada-002'):
-    embeddings = OpenAIEmbeddings(model=embedding_model, chunk_size=1)
+def load_db(db_path=kb_db_path, embedding_model='text-embedding-3-small'):
+    embeddings = OpenAIEmbeddings(model=embedding_model)
     db_loaded = FAISS.load_local(db_path, embeddings, 
                                  allow_dangerous_deserialization=True
                                  )

@@ -29,7 +29,9 @@ def _create_chain(template: str, output_parser: Any, llm: Optional[BaseLanguageM
 
     # return _create_chain(router_template, json_parser, llm)
 
-
+def _format_docs(docs):
+    """Format retrieved documents into a single string."""
+    return "\n\n".join([doc.page_content for doc in docs])
 
 # define the router chain
 def router_chain(llm):
@@ -66,7 +68,7 @@ def class_chain(llm):
     
     before generating a response think step by step and adhere to the following guidelines:
     1. Understand the query and the context of the chat history.
-    2 .Determine the type of query: explanation, practice problems, or software implementation.
+    2. Determine the type of query: explanation, practice problems, or software implementation.
     3. Generate a response based on the query type:
         - if the query is about clarification or explanation, answer the query to your best ability. 
         - If the query asks for practice problems or exercises, generate no more than two questions in multiple choice format with one correct answer. Include code snippets for each question when possible. Highlight the correct answer and provide a brief reasoning. 
@@ -112,10 +114,17 @@ def rag_chain(llm, retriever):
 
     Your response:
     """
-    # 
-    # Please generate an appropriate response. Format the output when possible. 
-
-    return _create_chain(template, output_parser, llm)
+    
+    prompt = ChatPromptTemplate.from_template(template)
+    
+    setup = RunnableParallel(
+        {
+            "context": retriever | _format_docs,
+            "query": RunnablePassthrough()
+        }
+    )
+    
+    return setup | prompt | llm | output_parser
 
 # 3c. Setup LLMChain & prompts for practice answer generation
 def step_chain(llm, retriever):
@@ -141,8 +150,17 @@ def step_chain(llm, retriever):
 
     Your response:
     """
-    # 
-    return _create_chain(template, output_parser, llm)
+    
+    prompt = ChatPromptTemplate.from_template(template)
+    
+    setup = RunnableParallel(
+        {
+            "context": retriever | _format_docs,
+            "query": RunnablePassthrough()
+        }
+    )
+    
+    return setup | prompt | llm | output_parser
 
 # define chat history chain
 # 3d. Setup LLMChain & prompts for RAG answer generation

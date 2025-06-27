@@ -42,7 +42,7 @@ gpt4o = LLMModels().openai_gpt4o(temperature=0)
 # 3 Setup the various chains to perform various functions
 step_chain = chains.step_chain(sonnet35, retriever_contents)
 rag_chain = chains.rag_chain(sonnet35, retriever_course)
-chat_chain = chains.class_chain(sonnet35)
+class_chain = chains.class_chain(sonnet35)
         
 # 5. Build an app with streamlit
 def main():
@@ -102,7 +102,7 @@ def main():
             # if model_option == "python": 
             if option == "in-class":       
                 ai_response = st.write_stream(
-                    chat_chain.stream(input={'query': user_query, 
+                    class_chain.stream(input={'query': user_query, 
                                                'chat_history': st.session_state.chat_history}))
 
             if option == "assignment":       
