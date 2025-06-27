@@ -6,7 +6,9 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain.globals import set_verbose
 import utils.chains_lcel as chains
 from utils.sidebar import sidebar
-from utils.llm_models import LLMModels
+# from utils.llm_models import LLMModels
+import utils.llm_models as llms
+
 
 # Enable verbose logging
 set_verbose(True)
@@ -32,17 +34,21 @@ collection = mongo_db['ISOM 550']
 
 # 3. Setup LLM and chains
 # initialize the llm
-haiku = LLMModels().claude_haiku(temperature=0)
-sonnet = LLMModels().claude_sonnet(temperature=0)
-sonnet35 = LLMModels().claude_sonnet35(temperature=0)
-gpt4o = LLMModels().openai_gpt4o(temperature=0)
+# haiku = LLMModels().claude_haiku(temperature=0)
+# sonnet = LLMModels().claude_sonnet(temperature=0)
+# sonnet35 = LLMModels().claude_sonnet35(temperature=0)
+# gpt4o = LLMModels().openai_gpt4o(temperature=0)
 # llm = LLMModels().claude_opus(temperature=0)
 # llm = LLMModels().openai_gpt35(temperature=0)
 
+claude_sonnet = llms.claude_sonnet_with_fallback
+claude_haiku = llms.claude_haiku_with_fallback
+gpt4o = llms.openai_gpt4o
+
 # 3 Setup the various chains to perform various functions
-step_chain = chains.step_chain(sonnet35, retriever_contents)
-rag_chain = chains.rag_chain(sonnet35, retriever_course)
-class_chain = chains.class_chain(sonnet35)
+step_chain = chains.step_chain(claude_sonnet, retriever_contents)
+rag_chain = chains.rag_chain(claude_haiku, retriever_course)
+class_chain = chains.class_chain(claude_sonnet)
         
 # 5. Build an app with streamlit
 def main():
@@ -102,10 +108,10 @@ def main():
             # if model_option == "python": 
             if option == "in-class":       
                 ai_response = st.write_stream(
-                    class_chain.stream(input={'query': user_query, 
-                                               'chat_history': st.session_state.chat_history}))
+                    class_chain.stream({'query': user_query, 
+                                        'chat_history': st.session_state.chat_history}))
 
-            if option == "assignment":       
+            elif option == "assignment":       
                 ai_response = st.write_stream(
                     step_chain.stream(input=user_query))
                 
