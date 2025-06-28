@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from langchain.globals import set_verbose
 import utils.chains_lcel as chains
-from utils.sidebar import sidebar
+from utils.sidebar import sidebar, update_session_stats, set_current_mode
 # from utils.llm_models import LLMModels
 import utils.llm_models as llms
 
@@ -33,51 +33,54 @@ mongo_db = query_db_connection()
 collection = mongo_db['ISOM 550']
 
 # 3. Setup LLM and chains
-# initialize the llm
-# haiku = LLMModels().claude_haiku(temperature=0)
-# sonnet = LLMModels().claude_sonnet(temperature=0)
-# sonnet35 = LLMModels().claude_sonnet35(temperature=0)
-# gpt4o = LLMModels().openai_gpt4o(temperature=0)
-# llm = LLMModels().claude_opus(temperature=0)
-# llm = LLMModels().openai_gpt35(temperature=0)
-
 claude_sonnet = llms.claude_sonnet_with_fallback
 claude_haiku = llms.claude_haiku_with_fallback
 gpt4o = llms.openai_gpt4o
+router_llm = llms.openai_gpt4o_mini  # Use JSON-capable model for routing
 
-# 3. Setup the various chains using the organized structure
-all_chains = chains.get_all_chains(claude_sonnet, claude_haiku, retriever_course, retriever_contents)
+# Initialize all chains including the routing chain with specialized router LLM
+all_chains = chains.get_all_chains(claude_sonnet, claude_haiku, retriever_course, retriever_contents, router_llm)
+router = all_chains['router']
+chain_dict = all_chains['chain_dict']
+
+# Individual chains
 step_chain = all_chains['step_chain']
 rag_chain = all_chains['rag_chain']  
 class_chain = all_chains['class_chain']
         
-# 5. Build an app with streamlit
+# 4. Build an app with streamlit
 def main():
 
     st.header("🦜 Virtual TA - ISOM 550 DDA")
-    # st.write("Currently support queries on syllabus and coding request.")
-    sidebar()
+    sidebar()  # Enhanced sidebar with app functionality
     
-    # Set up the radio button toggle with descriptions on both sides
+    # Set up the radio button toggle with two options
     option = st.radio(
-        label="Choose an option:",
-        options=["In-Class", "Assignment", "Course Logistics"],  # Replace with your actual options
-        index=1,  # Default selected option
-        horizontal=True  # Display options horizontally
+        label="Choose your interaction type:",
+        options=["In-Class", "Course"],
+        index=1,  # Default to Course
+        horizontal=True,
+        help="In-Class: General analytics discussions and explanations. Course: Course materials and assignment guidance."
     ).lower()
-    # Display the selected option
-    # st.write(f"You selected: {option}")
 
+    # Update current mode in session state for sidebar
+    set_current_mode(option.title())
+
+    # Set initial message based on option
     if "in-class" in option:
-        initial_text = "What question about data analytics do you have today? "
-    elif "assignment" in option:
-        initial_text = "What would you like to work on today? "
+        initial_text = "What question about data analytics do you have today? I can explain concepts, create practice problems, or help with software implementation."
+        st.write("💡 **In-Class Mode**: Ask me about data analytics concepts, request practice problems, or get help with software implementation.")
     else:
-        initial_text = "Hello there. What can I tell you about the course? "
-
+        initial_text = "What can I help you with regarding the course? I can search course materials for logistics or provide step-by-step guidance for assignments."
+        st.write("📚 **Course Mode**: I'll automatically determine whether to search course logistics (syllabus, deadlines) or provide learning guidance (concepts, assignments).")
+    
     # Initialize chat history in session state
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = [AIMessage(initial_text)]
+
+    # Display conversation statistics in main area
+    if len(st.session_state.chat_history) > 1:
+        st.caption(f"💬 Conversation: {len(st.session_state.chat_history)} messages")
 
     # display previous conversation history
     for message in st.session_state.chat_history:
@@ -88,8 +91,8 @@ def main():
             with st.chat_message("AI", avatar="🦜"):
                 st.markdown(message.content)
     
-    # truncate chat history to last 5 messages
-    max_num_messages = 2
+    # truncate chat history to last 4 messages to maintain context
+    max_num_messages = 4
     if len(st.session_state.chat_history) > max_num_messages:
         st.session_state.chat_history = st.session_state.chat_history[-max_num_messages:]
     
@@ -97,34 +100,74 @@ def main():
     # get user query
     if user_query := st.chat_input("Enter your query here...", key="user_query"):
         
+        # Update session statistics
+        update_session_stats()
+        
         # display user query
         with st.chat_message("Human"):
             st.markdown(user_query)
         
         # save to MongoDB database
-        process_and_store_query(collection, query=user_query)
+        # process_and_store_query(collection, query=user_query)
 
-        # Generate AI response based on user query
+        # Generate AI response based on selected option
         with st.chat_message("AI", avatar="🦜"):
-            # if model_option == "python": 
-            if option == "in-class":       
-                ai_response = st.write_stream(
-                    class_chain.stream({'query': user_query, 
-                                        'chat_history': st.session_state.chat_history}))
-
-            elif option == "assignment":       
-                ai_response = st.write_stream(
-                    step_chain.stream(input=user_query))
+            try:
+                if "in-class" in option:
+                    print("In-Class")
+                    # In-Class: Use class chain directly for general analytics discussions
+                    ai_response = st.write_stream(
+                        class_chain.stream({
+                            'query': user_query, 
+                            'chat_history': st.session_state.chat_history
+                        }))
                 
-            # model option is RAG for the course    # 
-            else:                
+                else:
+                    print("Course")
+                    # Course: Use router to choose between course logistics and content materials
+                    
+                    # Get conversation context for the router
+                    if len(st.session_state.chat_history) >= 2:
+                        recent_history = st.session_state.chat_history[-2:]
+                        history_text = "\n".join([f"{'Human' if i % 2 == 0 else 'AI'}: {msg.content}" for i, msg in enumerate(recent_history)])
+                    else:
+                        history_text = "No previous conversation"
+                    
+                    tool_choice = router.invoke({
+                        "query": user_query,
+                        "chat_history": history_text
+                    })
+
+                    print(tool_choice)
+                    
+                    # Show router decision in sidebar (for debugging/transparency)
+                    if hasattr(tool_choice, 'label'):
+                        st.sidebar.caption(f"🤖 Router Decision: {tool_choice.label}")
+                    
+                    # Execute the appropriate chain based on routing decision
+                    response_stream = chains.call_function(
+                        tool_name=tool_choice.label,
+                        query=tool_choice.query,
+                        chains_dict=chain_dict,
+                        chat_history=st.session_state.chat_history
+                    )
+                    
+                    # Stream the response
+                    ai_response = st.write_stream(response_stream)
+                        
+            except Exception as e:
+                print(e)
+                # Fallback to class chain for any errors
+                st.write("Let me help you with that...")
                 ai_response = st.write_stream(
-                    rag_chain.stream(input=user_query))
+                    class_chain.stream({
+                        'query': user_query, 
+                        'chat_history': st.session_state.chat_history
+                    }))
 
         # append AI response to chat history
         st.session_state.chat_history.append(HumanMessage(user_query))
         st.session_state.chat_history.append(AIMessage(ai_response))
 
-    # summarize the conversation with llm. 
 if __name__ == '__main__':
     main()
