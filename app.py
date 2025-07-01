@@ -68,11 +68,11 @@ def main():
 
     # Set initial message based on option
     if "in-class" in option:
-        initial_text = "What question about data analytics do you have today? I can explain concepts, create practice problems, or help with software implementation."
+        initial_text = "I can explain concepts, create practice problems, or help with software implementation."
         st.write("💡 **In-Class Mode**: Ask me about data analytics concepts, request practice problems, or get help with software implementation.")
     else:
-        initial_text = "What can I help you with regarding the course? I can search course materials for logistics or provide step-by-step guidance for assignments."
-        st.write("📚 **Course Mode**: I'll automatically determine whether to search course logistics (syllabus, deadlines) or provide learning guidance (concepts, assignments).")
+        initial_text = "I can search course materials for logistics or provide step-by-step guidance for assignments."
+        st.write("📚 **Course Mode**: Search course logistics (syllabus, deadlines) or provide learning guidance (concepts, assignments).")
     
     # Initialize chat history in session state
     if "chat_history" not in st.session_state:
@@ -108,13 +108,12 @@ def main():
             st.markdown(user_query)
         
         # save to MongoDB database
-        # process_and_store_query(collection, query=user_query)
+        process_and_store_query(collection, query=user_query)
 
         # Generate AI response based on selected option
         with st.chat_message("AI", avatar="🦜"):
             try:
                 if "in-class" in option:
-                    print("In-Class")
                     # In-Class: Use class chain directly for general analytics discussions
                     ai_response = st.write_stream(
                         class_chain.stream({
@@ -123,12 +122,11 @@ def main():
                         }))
                 
                 else:
-                    print("Course")
                     # Course: Use router to choose between course logistics and content materials
                     
                     # Get conversation context for the router
-                    if len(st.session_state.chat_history) >= 2:
-                        recent_history = st.session_state.chat_history[-2:]
+                    if len(st.session_state.chat_history) >= 4:
+                        recent_history = st.session_state.chat_history[-4:]
                         history_text = "\n".join([f"{'Human' if i % 2 == 0 else 'AI'}: {msg.content}" for i, msg in enumerate(recent_history)])
                     else:
                         history_text = "No previous conversation"
