@@ -7,7 +7,7 @@ from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from operator import itemgetter
 from typing import Dict, Any, Optional, Union, List
-from langchain.schema.language_model import BaseLanguageModel
+from langchain_core.language_models import BaseLanguageModel
 from pydantic import BaseModel, Field, validator
 
 # Global output parser

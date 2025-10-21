@@ -3,7 +3,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.messages import HumanMessage, AIMessage
 
-from langchain.globals import set_verbose
+from langchain_core.globals import set_verbose
 import utils.chains_lcel as chains
 from utils.sidebar import sidebar, update_session_stats, set_current_mode
 # from utils.llm_models import LLMModels
