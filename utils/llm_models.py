@@ -116,7 +116,7 @@ openai_gpt4o = ChatOpenAI(temperature=0.1,
 
 # Keep the original models for reference or direct use
 claude_sonnet = ChatAnthropic(
-        model='claude-3-5-sonnet-latest',
+        model='claude-sonnet-4-5',
         temperature=TEMPERATURE,
         max_tokens=MAX_TOKENS
         )
