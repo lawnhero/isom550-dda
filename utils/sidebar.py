@@ -41,7 +41,7 @@ def sidebar():
         
         # Header and branding
         st.markdown("# 🤖 Virtual TA Guide")
-        st.markdown("**ISOM 550 - Data & Decision Analytics**")
+        st.markdown("**BUS 350 - Data & Decision Analytics**")
         st.markdown("---")
         
         
@@ -104,10 +104,8 @@ def sidebar():
             **💡 Example Queries:**
             - "Explain linear regression"
             - "Create practice questions on hypothesis testing"  
-            - "How to use pandas for data cleaning?"
             - "What's the business meaning of correlation?"
-            - "Give me a Python example for data visualization"
-            • "What's the difference between mean and median?"
+            - "What's the difference between mean and median?"
             """)
         
         with st.expander("📚 **Course Mode**", expanded=False):

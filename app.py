@@ -51,7 +51,7 @@ class_chain = all_chains['class_chain']
 # 4. Build an app with streamlit
 def main():
 
-    st.header("🦜 Virtual TA - ISOM 550 DDA")
+    st.header("🦜 Virtual TA - BUS 350 DDA")
     sidebar()  # Enhanced sidebar with app functionality
     
     # Set up the radio button toggle with two options
