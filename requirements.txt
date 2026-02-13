@@ -5,3 +5,5 @@ langchain_openai
 langchain_anthropic
 faiss-cpu
 pymongo
+python-dotenv
+certifi

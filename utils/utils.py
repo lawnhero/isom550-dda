@@ -1,9 +1,14 @@
+import os
+import certifi
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 import streamlit as st
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # knowledge base path
 kb_db_path = 'data/emb_db'
@@ -19,15 +24,15 @@ def load_db(db_path=kb_db_path, embedding_model='text-embedding-3-small'):
     print("Database loaded")
     return db_loaded
 
-MONGODB_PASSWORD="9vYq3TWWsQn7bp2v"
+MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD")
 
-uri = f"mongodb+srv://streamlit_app:{MONGODB_PASSWORD}@virtual-ta.q344d.mongodb.net/myFirstDatabase?retryWrites=true&w=majority&ssl=true&ssl_cert_reqs=CERT_NONE"
+uri = f"mongodb+srv://streamlit_app:{MONGODB_PASSWORD}@virtual-ta.q344d.mongodb.net/?retryWrites=true&w=majority"
 
 # MongoDB Atlas connection
 @st.cache_resource
 def query_db_connection():
     """Return a MongoDB connection to the user_queries_db database."""
-    client = MongoClient(uri, server_api=ServerApi('1'))
+    client = MongoClient(uri, server_api=ServerApi('1'), tlsCAFile=certifi.where())
     print("Connected to MongoDB")
     return client['user_queries_db']
 
