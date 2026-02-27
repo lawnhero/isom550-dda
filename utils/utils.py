@@ -1,6 +1,6 @@
 import os
 import certifi
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 import streamlit as st
 from pymongo.mongo_client import MongoClient
@@ -11,16 +11,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # knowledge base path
-kb_db_path = 'data/emb_db'
+kb_db_path = 'data/chroma_db'
 
 
 @st.cache_resource
 # load the vectorized database
 def load_db(db_path=kb_db_path, embedding_model='text-embedding-3-small'):
     embeddings = OpenAIEmbeddings(model=embedding_model)
-    db_loaded = FAISS.load_local(db_path, embeddings, 
-                                 allow_dangerous_deserialization=True
-                                 )
+    db_loaded = Chroma(persist_directory=db_path, embedding_function=embeddings)
     print("Database loaded")
     return db_loaded
 

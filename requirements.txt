@@ -3,7 +3,7 @@ langchain_community
 langchain
 langchain_openai 
 langchain_anthropic
-faiss-cpu
+chromadb
 pymongo
 python-dotenv
 certifi

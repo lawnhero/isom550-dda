@@ -14,3 +14,9 @@ etc/
 
 # Ignore the trial file
 trial.ipynb
+
+# Ignore database directories
+data/emb_db/
+data/chroma_db/
+data/contents/
+data/course/
