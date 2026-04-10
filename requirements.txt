@@ -3,7 +3,8 @@ langchain_community
 langchain
 langchain_openai 
 langchain_anthropic
-chromadb
+chromadb==0.4.24
 pymongo
 python-dotenv
 certifi
+protobuf>=3.20.0,<4.0.0
