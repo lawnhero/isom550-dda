@@ -1,6 +1,5 @@
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-from typing import Optional
 from langchain_core.language_models import BaseChatModel
 from pydantic import Field
 
@@ -82,13 +81,6 @@ def create_model_with_fallback(
     """Creates a wrapper around the primary model that falls back to a secondary model if the primary fails"""
     return ModelWithFallback(primary=primary_model, fallback=fallback_model)
 
-# Code generation llm with gpt-3.5
-openai_gpt35 = ChatOpenAI(temperature=TEMPERATURE, 
-                 model="gpt-3.5-turbo",
-                 verbose=False,
-                 max_tokens=300,
-                 )
-
 openai_gpt4o_mini = ChatOpenAI(temperature=TEMPERATURE, 
                  model="gpt-4o-mini",
                  verbose=False,
@@ -101,15 +93,7 @@ openai_4o_mini_json = ChatOpenAI(temperature=TEMPERATURE,
         model_kwargs={ "response_format": { "type": "json_object" } }
         )
 
-# Router llm: Choose OpenAI-GPT4 for better reasoning 
-openai_gpt4 = ChatOpenAI(temperature=0.1, 
-                 model="gpt-4-0125-preview",
-                 verbose=False,
-                 max_tokens=50,
-                 )
-
-
-# Create GPT-4 model for fallback
+# Primary OpenAI model for fallback and robust generation.
 openai_gpt4o = ChatOpenAI(temperature=0.1, 
         model='gpt-4o',
         )
@@ -129,16 +113,8 @@ claude_sonnet_with_fallback = create_model_with_fallback(
 
 
 
-claude_opus = ChatAnthropic(
-        model='claude-3-opus-20240229',
-        temperature=TEMPERATURE,
-        max_tokens=MAX_TOKENS
-        )
-
-
-# Keep the original models for reference
 claude_haiku = ChatAnthropic(
-        model='claude-3-5-haiku-latest',
+        model='claude-haiku-4-5',
         temperature=TEMPERATURE,
         max_tokens=MAX_TOKENS
         )

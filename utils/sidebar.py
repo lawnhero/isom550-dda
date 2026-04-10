@@ -1,11 +1,11 @@
 import streamlit as st
-import os
 from datetime import datetime
-import json
 
 def clear_chat_history():
     """Clear the chat history and reset conversation."""
     st.session_state.chat_history = []
+    st.session_state.memory_summary = ""
+    st.session_state.last_interaction_id = ""
     st.rerun()
 
 def save_chat_history():
@@ -15,7 +15,7 @@ def save_chat_history():
     
     # Create formatted chat history
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    chat_content = f"ISOM 550 DDA Virtual TA - Chat History\n"
+    chat_content = f"BUS 350 DDA Virtual TA - Chat History\n"
     chat_content += f"Saved on: {timestamp}\n"
     chat_content += f"Total Messages: {len(st.session_state.chat_history)}\n"
     chat_content += "=" * 50 + "\n\n"
@@ -30,27 +30,43 @@ def save_chat_history():
     
     return chat_content
 
-def get_mode_info():
-    """Get information about current interaction mode."""
-    # This will be called from the main app to show current mode
-    return st.session_state.get('current_mode', 'Unknown')
-
 def sidebar():
     """Enhanced sidebar for MBA Data Analytics Virtual TA."""
     with st.sidebar:
         
         # Header and branding
-        st.markdown("# 🤖 Virtual TA Guide")
-        st.markdown("**BUS 350 - Data & Decision Analytics**")
+        st.markdown("# Virtual TA Guide")
+        st.markdown("**BUS 350 - Data and Decision Analytics**")
         st.markdown("---")
-        
-        
+
+        st.markdown("## Learning Preferences")
+        response_mode = st.selectbox(
+            "Response style",
+            options=["Direct answer", "Hint-first", "Teach me step-by-step"],
+            index=["Direct answer", "Hint-first", "Teach me step-by-step"].index(
+                st.session_state.get("response_mode", "Teach me step-by-step")
+            ),
+            help="Choose how much guidance the assistant should provide.",
+        )
+        memory_window = st.slider(
+            "Recent message window",
+            min_value=4,
+            max_value=16,
+            value=st.session_state.get("memory_window", 8),
+            step=2,
+            help="Number of recent messages considered before using summary memory.",
+        )
+        show_diagnostics = st.toggle(
+            "Show retrieval diagnostics",
+            value=st.session_state.get("show_diagnostics", False),
+            help="Display router and retrieval debug info for development.",
+        )
+        st.session_state.response_mode = response_mode
+        st.session_state.memory_window = memory_window
+        st.session_state.show_diagnostics = show_diagnostics
+
         # Conversation management
-        st.markdown("## 🔄 Conversation")
-        # Show current mode if available
-        if hasattr(st.session_state, 'current_mode'):
-            st.markdown(f"**Current Mode:** {st.session_state.current_mode}")
-        
+        st.markdown("## Conversation")
         # Show conversation count
         if 'chat_history' in st.session_state:
             msg_count = len(st.session_state.chat_history)
@@ -88,33 +104,15 @@ def sidebar():
         # Pro tips
         # st.markdown("## 🎯 Pro Tips")
 
-        # Mode explanation
-        st.markdown("## 📋 How It Works")
+        # App behavior explanation
+        st.markdown("## How It Works")
         
-        with st.expander("🔍 **In-Class Mode**", expanded=False):
+        with st.expander("Unified Tutor", expanded=False):
             st.markdown("""
-            **Best for:**
-            - Concept explanations
-            - Practice problems  
-            - Software implementation help
-            - General analytics discussions
-            
-            **AI Response:** Direct answers with examples, practice questions, or step-by-step guidance
-            
-            **💡 Example Queries:**
-            - "Explain linear regression"
-            - "Create practice questions on hypothesis testing"  
-            - "What's the business meaning of correlation?"
-            - "What's the difference between mean and median?"
-            """)
-        
-        with st.expander("📚 **Course Mode**", expanded=False):
-            st.markdown("""
-            **Intelligent Routing:**
-            - **Course Logistics** → Syllabus, deadlines, policies
-            - **Learning Content** → Concepts, assignment help
-            
-            **AI Magic:** Automatically determines which knowledge base to search based on your question!
+            **Auto-routing:**
+            - Course logistics questions route to course materials
+            - Learning and assignment questions route to content materials
+            - If routing fails, the app falls back to direct tutoring safely
             
             **💡 Example Queries:**
             - "When is the midterm exam?"
@@ -127,7 +125,7 @@ def sidebar():
         
         # st.markdown("---")
         
-        with st.expander("📈 **Get Better Results**", expanded=False):
+        with st.expander("Get Better Results", expanded=False):
             st.markdown("""
             **Be Specific:**
             - Include context and variables
@@ -139,32 +137,35 @@ def sidebar():
             - Ask "What's next?" for step-by-step help
             - Reference earlier discussion
             
-            **Course Mode:**
-            - Let AI auto-route your questions
-            - Mix logistics and learning queries
-            - Trust the intelligent classification
+            **Learning Tip:**
+            - Ask focused follow-up questions to deepen understanding
+            - Mention your assumptions so the tutor can correct them early
             """)
         
         
         
-        st.markdown("---")
-        
         # Footer
-        st.markdown("## ⚠️ Important Notes")
+        st.markdown("## Important Notes")
         st.markdown("""
-        📖 **Work in Progress:** Continuously improving
+        **Work in Progress:** Continuously improving
         
-        🔒 **Privacy:** Never include personal information
+        **Privacy:** Never include personal information
         
-        🎓 **Academic Tool:** Use for learning, not cheating
+        **Academic Tool:** Use for learning, not cheating
         
-        💬 **Feedback:** Report issues or suggestions
+        **Learning Focus:** Ask for hints when you want guided practice
         """)
         
         st.markdown("---")
         st.markdown("**Created by:** Dr. Wenjun Gu")  
         st.markdown("📧 wenjun.gu@emory.edu")
         st.markdown("🏫 Goizueta Business School")
+
+    return {
+        "response_mode": response_mode,
+        "memory_window": memory_window,
+        "show_diagnostics": show_diagnostics,
+    }
 
 def update_session_stats():
     """Update session statistics (call from main app)."""
@@ -173,6 +174,9 @@ def update_session_stats():
     else:
         st.session_state.total_queries = 1
 
-def set_current_mode(mode):
-    """Set current interaction mode (call from main app)."""
-    st.session_state.current_mode = mode
+def get_sidebar_settings():
+    return {
+        "response_mode": st.session_state.get("response_mode", "Teach me step-by-step"),
+        "memory_window": st.session_state.get("memory_window", 8),
+        "show_diagnostics": st.session_state.get("show_diagnostics", False),
+    }

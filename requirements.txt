@@ -3,6 +3,7 @@ langchain_community
 langchain
 langchain_openai
 langchain_anthropic
+langchain-text-splitters
 langchain-chroma
 chromadb==0.5.0
 numpy<2.0
@@ -11,3 +12,4 @@ opentelemetry-exporter-otlp-proto-grpc==1.24.0
 pymongo
 python-dotenv
 certifi
+pypdf
