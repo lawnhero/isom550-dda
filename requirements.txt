@@ -4,9 +4,8 @@ langchain
 langchain_openai 
 langchain_anthropic
 langchain-chroma
-chromadb
+chromadb>=0.6.0
 numpy<2.0
 pymongo
 python-dotenv
 certifi
-protobuf==3.20.3
