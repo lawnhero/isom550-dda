@@ -1,3 +1,6 @@
+import os
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
 import streamlit as st
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
