@@ -3,6 +3,7 @@ langchain_community
 langchain
 langchain_openai 
 langchain_anthropic
+langchain-chroma
 chromadb==0.4.24
 pymongo
 python-dotenv

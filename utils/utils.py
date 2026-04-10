@@ -1,6 +1,6 @@
 import os
 import certifi
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 import streamlit as st
 from pymongo.mongo_client import MongoClient
