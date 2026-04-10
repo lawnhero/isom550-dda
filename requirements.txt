@@ -5,6 +5,7 @@ langchain_openai
 langchain_anthropic
 langchain-chroma
 chromadb==0.4.24
+numpy<2.0
 pymongo
 python-dotenv
 certifi
