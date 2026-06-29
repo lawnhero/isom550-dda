@@ -15,7 +15,7 @@ def save_chat_history():
     
     # Create formatted chat history
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    chat_content = f"BUS 350 DDA Virtual TA - Chat History\n"
+    chat_content = f"DDA Virtual TA - Chat History\n"
     chat_content += f"Saved on: {timestamp}\n"
     chat_content += f"Total Messages: {len(st.session_state.chat_history)}\n"
     chat_content += "=" * 50 + "\n\n"
@@ -36,7 +36,7 @@ def sidebar():
         
         # Header and branding
         st.markdown("# Virtual TA Guide")
-        st.markdown("**BUS 350 - Data and Decision Analytics**")
+        # st.markdown("**ISOM 550 - Data and Decision Analytics**")
         st.markdown("---")
 
         st.markdown("## Learning Preferences")
