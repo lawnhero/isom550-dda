@@ -10,7 +10,7 @@ from utils.retrieval import hybrid_retrieve, retrieval_debug_rows
 
 # Set the page_title
 st.set_page_config(
-    page_title="BUS 350 DDA Virtual TA", page_icon="📚", layout="wide"
+    page_title="ISOM 550 DDA Virtual TA", page_icon="📚", layout="wide"
 )
 
 # cache the vectorized embedding database 
@@ -36,7 +36,7 @@ retriever_contents = contents_db.as_retriever()
 
 # 2. MongoDB Atlas connection
 mongo_db = query_db_connection()
-collection = mongo_db['BUS 350']
+collection = mongo_db['ISOM 550']
 
 # 3. Setup LLM and chains
 claude_sonnet = llms.claude_sonnet_with_fallback
@@ -64,14 +64,14 @@ def main():
     if "feedback_submitted_ids" not in st.session_state:
         st.session_state.feedback_submitted_ids = []
 
-    st.header("Virtual TA - BUS 350 Data and Decision Analytics")
+    st.header("Virtual TA - ISOM 550 Data and Decision Analytics")
     sidebar_settings = sidebar()
     initial_text = (
         "I can answer logistics questions, explain analytics concepts, and guide you "
         "step-by-step based on your selected response style."
     )
     st.write(
-        "Ask any BUS 350 question. I auto-route between course logistics and learning guidance, "
+        "Ask any ISOM 550 question. I auto-route between course logistics and learning guidance, "
         "then adapt the explanation to your selected response style."
     )
     option = "unified"
@@ -127,7 +127,7 @@ def main():
     # Quick actions to reduce prompt-writing friction.
     st.caption("Quick actions")
     quick_actions = [
-        ("Explain concept", "Explain this concept clearly for BUS 350 with a simple business example."),
+        ("Explain concept", "Explain this concept clearly for ISOM 550 with a simple business example."),
         ("Practice question", "Create one practice question and then guide me with hints."),
         ("Check my attempt", "I tried a solution. Please check my attempt and tell me what to fix next."),
         ("What is next step?", "What is my immediate next step?"),
