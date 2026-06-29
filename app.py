@@ -64,7 +64,7 @@ def main():
     if "feedback_submitted_ids" not in st.session_state:
         st.session_state.feedback_submitted_ids = []
 
-    st.header("Virtual TA - ISOM 550 Data and Decision Analytics")
+    st.header("Virtual TA - ISOM 550 DDA")
     sidebar_settings = sidebar()
     initial_text = (
         "I can answer logistics questions, explain analytics concepts, and guide you "

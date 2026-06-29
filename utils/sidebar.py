@@ -37,7 +37,7 @@ def sidebar():
         # Header and branding
         st.markdown("# Virtual TA Guide")
         # st.markdown("**ISOM 550 - Data and Decision Analytics**")
-        st.markdown("---")
+        # st.markdown("---")
 
         st.markdown("## Learning Preferences")
         response_mode = st.selectbox(
