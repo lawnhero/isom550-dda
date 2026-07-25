@@ -6,6 +6,7 @@ def clear_chat_history():
     st.session_state.chat_history = []
     st.session_state.memory_summary = ""
     st.session_state.last_interaction_id = ""
+    st.session_state.pending_intent = None
     st.rerun()
 
 def save_chat_history():
@@ -40,14 +41,18 @@ def sidebar():
         # st.markdown("---")
 
         st.markdown("## Learning Preferences")
-        response_mode = st.selectbox(
+        response_modes = ["Direct answer", "Hint-first", "Teach me step-by-step"]
+        if "response_mode" not in st.session_state:
+            st.session_state.response_mode = "Teach me step-by-step"
+        response_mode = st.segmented_control(
             "Response style",
-            options=["Direct answer", "Hint-first", "Teach me step-by-step"],
-            index=["Direct answer", "Hint-first", "Teach me step-by-step"].index(
-                st.session_state.get("response_mode", "Teach me step-by-step")
-            ),
+            options=response_modes,
+            key="response_mode",
             help="Choose how much guidance the assistant should provide.",
         )
+        if response_mode is None:
+            response_mode = "Teach me step-by-step"
+            st.session_state.response_mode = response_mode
         memory_window = st.slider(
             "Recent message window",
             min_value=4,
@@ -57,11 +62,10 @@ def sidebar():
             help="Number of recent messages considered before using summary memory.",
         )
         show_diagnostics = st.toggle(
-            "Show retrieval diagnostics",
+            "Show agent diagnostics",
             value=st.session_state.get("show_diagnostics", False),
-            help="Display router and retrieval debug info for development.",
+            help="Display tool calls and retrieval debug info for development.",
         )
-        st.session_state.response_mode = response_mode
         st.session_state.memory_window = memory_window
         st.session_state.show_diagnostics = show_diagnostics
 
@@ -77,7 +81,7 @@ def sidebar():
         
         with col1:
             # Clear chat button
-            if st.button("🗑️ Clear Chat", use_container_width=True):
+            if st.button("🗑️ Clear Chat", width='stretch'):
                 clear_chat_history()
                 st.success("Chat cleared!")
         
@@ -93,10 +97,10 @@ def sidebar():
                     data=chat_content,
                     file_name=filename,
                     mime="text/plain",
-                    use_container_width=True
+                    width='stretch'
                 )
             else:
-                st.button("💾 Save Chat", disabled=True, use_container_width=True, 
+                st.button("💾 Save Chat", disabled=True, width='stretch', 
                          help="No conversation to save")
         
         st.markdown("---")

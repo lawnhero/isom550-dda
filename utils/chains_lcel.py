@@ -45,26 +45,116 @@ def format_chat_history(chat_history, max_messages: int = 8) -> str:
     return "\n".join(lines)
 
 
+CURRICULUM_TOPICS = [
+    "Descriptive statistics",
+    "Probability",
+    "Hypothesis testing",
+    "Regression",
+    "Decision analysis",
+    "SAS JMP / Excel workflows",
+]
+
+# Backward-compatible alias used by topic pills in the UI.
+COURSE_TOPIC_CHOICES = CURRICULUM_TOPICS
+
+_TOPIC_KEYWORDS = {
+    "Descriptive statistics": [
+        "descriptive",
+        "distribution",
+        "mean",
+        "median",
+        "variance",
+        "standard deviation",
+    ],
+    "Probability": ["probability", "bayes", "conditional", "random variable"],
+    "Hypothesis testing": ["hypothesis", "p-value", "significance", "t-test", "anova"],
+    "Regression": ["regression", "coefficient", "r-squared", "multicollinearity"],
+    "Decision analysis": ["excel model", 'sensitivity analysis', 'decision tree development / solution'],
+    "SAS JMP / Excel workflows": ["jmp", "excel", "data analysis toolpak"],
+}
+
+_LOGISTICS_KEYWORDS = {
+    "grading": "Course policy and grading logistics",
+    "deadline": "Course schedule and due date logistics",
+    "syllabus": "Course schedule and due date logistics",
+    "assignment due": "Course schedule and due date logistics",
+}
+
+
+def infer_curriculum_topic(query: str) -> str:
+    """Return the best-matching curriculum topic label, or empty string."""
+    lowered = (query or "").lower()
+    for topic in CURRICULUM_TOPICS:
+        if topic.lower() in lowered:
+            return topic
+    for topic, keywords in _TOPIC_KEYWORDS.items():
+        if any(keyword in lowered for keyword in keywords):
+            return topic
+    return ""
+
+
 def infer_learning_objective(query: str) -> str:
     """Infer a course objective tag from query keywords."""
+    topic = infer_curriculum_topic(query)
+    if topic:
+        return topic
     lowered = query.lower()
-    objective_map = {
-        "regression": "Regression modeling and interpretation",
-        "hypothesis": "Hypothesis testing and statistical inference",
-        "probability": "Probability foundations",
-        "classification": "Predictive classification methods",
-        "sql": "Data querying and transformation",
-        "python": "Python analytics implementation",
-        "excel": "Spreadsheet analytics workflows",
-        "clustering": "Segmentation and clustering",
-        "visual": "Data visualization for decision making",
-        "grading": "Course policy and grading logistics",
-        "deadline": "Course schedule and due date logistics",
-    }
-    for keyword, objective in objective_map.items():
+    for keyword, objective in _LOGISTICS_KEYWORDS.items():
         if keyword in lowered:
             return objective
     return "General data and decision analytics reasoning"
+
+
+def infer_topic_from_history(chat_history, max_messages: int = 6) -> str:
+    """Return a concrete topic from recent chat, or empty string if unclear."""
+    if not chat_history:
+        return ""
+    recent = chat_history[-max_messages:]
+    for message in reversed(recent):
+        if "Human" not in str(type(message)):
+            continue
+        topic = infer_curriculum_topic(message.content)
+        if topic:
+            return topic
+        objective = infer_learning_objective(message.content)
+        if objective in CURRICULUM_TOPICS:
+            return objective
+    for message in reversed(recent):
+        if "AI" not in str(type(message)) and "Assistant" not in str(type(message)):
+            continue
+        topic = infer_curriculum_topic(message.content)
+        if topic:
+            return topic
+        objective = infer_learning_objective(message.content)
+        if objective in CURRICULUM_TOPICS:
+            return objective
+    return ""
+
+
+def compose_quick_action_query(intent: str, topic: str = "", attempt_text: str = "") -> str:
+    """Build a concrete tutoring request from a quick-action intent."""
+    topic = (topic or "").strip()
+    attempt_text = (attempt_text or "").strip()
+    if intent == "explain":
+        return (
+            f"Explain the {topic} topic clearly with a simple business example."
+        )
+    if intent == "practice":
+        return (
+            f"Create one practice question on the {topic} topic, then guide me with hints. "
+            "Stay strictly on this topic; do not invent an unrelated scenario."
+        )
+    if intent == "check":
+        if attempt_text:
+            return (
+                "Please check my attempt and tell me what to fix next.\n\n"
+                f"My attempt:\n{attempt_text}"
+            )
+        return "Please check my attached attempt and tell me what to fix next."
+    if intent == "next_step":
+        return "Based on our conversation so far, what is my immediate next learning step?"
+    return topic or attempt_text
+
 
 
 def infer_learner_level(chat_history) -> str:
@@ -136,18 +226,17 @@ Response format:
     return _create_simple_chain(template, llm, parser=pydantic_parser)
 
 
-def call_function(
-    tool_name: str,
+def build_chain_payload(
     query: str,
-    chains_dict: dict,
     chat_history=None,
     memory_summary: str = "",
     response_mode: str = "Teach me step-by-step",
-):
-    """Invoke the appropriate chain based on router label."""
+    context: str = "",
+) -> Dict[str, str]:
+    """Build the common payload passed into tutoring chains."""
     history_text = format_chat_history(chat_history, max_messages=8)
     profile = build_learning_profile(query, response_mode, chat_history)
-    payload = {
+    return {
         "query": query,
         "chat_history": history_text,
         "memory_summary": memory_summary or "No memory summary yet.",
@@ -155,28 +244,8 @@ def call_function(
         "learning_objective": profile["learning_objective"],
         "learner_level": profile["learner_level"],
         "attempt_check": profile["attempt_check"],
+        "context": context or "No retrieved context available.",
     }
-
-    if "course" in tool_name:
-        return chains_dict["rag_chain"].stream(payload)
-    if "contents" in tool_name:
-        return chains_dict["step_chain"].stream(payload)
-    return chains_dict["class_chain"].stream(payload)
-
-
-def unified_ta_chain_with_tools(
-    main_llm: BaseLanguageModel,
-    router_llm: BaseLanguageModel,
-    retriever_course,
-    retriever_contents,
-):
-    chain_dict = {
-        "rag_chain": rag_chain(main_llm, retriever_course),
-        "step_chain": step_chain(main_llm, retriever_contents),
-        "class_chain": class_chain(main_llm),
-    }
-    router = create_routing_chain(router_llm)
-    return router, chain_dict
 
 
 def class_chain(llm: BaseLanguageModel):
@@ -241,7 +310,7 @@ Response:"""
     return setup | prompt | llm | output_parser
 
 
-def rag_chain(llm: BaseLanguageModel, retriever):
+def rag_chain(llm: BaseLanguageModel):
     template = """You are Dayton, a Virtual TA for BUS 350 Data and Decision Analytics.
 Answer the logistics question using ONLY the provided course materials.
 
@@ -287,7 +356,7 @@ Answer:"""
     prompt = ChatPromptTemplate.from_template(template)
     setup = RunnableParallel(
         {
-            "context": itemgetter("query") | retriever | _format_docs,
+            "context": itemgetter("context"),
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
             "memory_summary": itemgetter("memory_summary"),
@@ -298,7 +367,7 @@ Answer:"""
     return setup | prompt | llm | output_parser
 
 
-def step_chain(llm: BaseLanguageModel, retriever):
+def step_chain(llm: BaseLanguageModel):
     template = """You are Dayton, a Socratic Virtual TA for BUS 350 Data and Decision Analytics.
 
 Learning objective: {learning_objective}
@@ -353,7 +422,7 @@ Response:"""
     prompt = ChatPromptTemplate.from_template(template)
     setup = RunnableParallel(
         {
-            "context": itemgetter("query") | retriever | _format_docs,
+            "context": itemgetter("context"),
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
             "memory_summary": itemgetter("memory_summary"),
@@ -361,6 +430,94 @@ Response:"""
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
             "attempt_check": itemgetter("attempt_check"),
+        }
+    )
+    return setup | prompt | llm | output_parser
+
+
+def practice_chain(llm: BaseLanguageModel):
+    template = """You are Dayton, a Virtual TA for MBA Data and Decision Analytics.
+
+Topic: {topic}
+Difficulty: {difficulty}
+Learning objective: {learning_objective}
+Estimated learner level: {learner_level}
+
+Create exactly ONE practice question for this topic.
+Rules:
+1) Use a realistic MBA/business scenario tied to the topic.
+2) Ask one clear question the student can answer in 3-5 sentences or a short calculation.
+3) Do NOT provide the full solution.
+4) End with one short hint the student can use if stuck.
+5) Keep total response <=180 words.
+
+Use this structure:
+**Practice question**
+<scenario + question>
+
+**Hint**
+- <one actionable hint>
+
+Conversation memory summary:
+{memory_summary}
+
+Recent chat:
+{chat_history}
+
+Response:"""
+    prompt = ChatPromptTemplate.from_template(template)
+    setup = RunnableParallel(
+        {
+            "topic": itemgetter("topic"),
+            "difficulty": itemgetter("difficulty"),
+            "learning_objective": itemgetter("learning_objective"),
+            "learner_level": itemgetter("learner_level"),
+            "memory_summary": itemgetter("memory_summary"),
+            "chat_history": itemgetter("chat_history"),
+        }
+    )
+    return setup | prompt | llm | output_parser
+
+
+def check_chain(llm: BaseLanguageModel):
+    template = """You are Dayton, a Virtual TA for MBA Data and Decision Analytics.
+
+Topic: {topic}
+Learning objective: {learning_objective}
+Estimated learner level: {learner_level}
+
+Check the student's attempt and give constructive feedback.
+Rules:
+1) Use this exact structure:
+   **What is correct**
+   - <bullet(s)>
+   **What to fix**
+   - <bullet(s)>
+   **Next action**
+   - <one concrete revision step>
+2) Be specific and encouraging; do not rewrite the full solution unless the attempt is blank.
+3) Keep total response <=180 words.
+4) End with one short follow-up question.
+
+Conversation memory summary:
+{memory_summary}
+
+Recent chat:
+{chat_history}
+
+Student attempt:
+{attempt_text}
+
+Response:"""
+    prompt = ChatPromptTemplate.from_template(template)
+    setup = RunnableParallel(
+        {
+            "topic": itemgetter("topic"),
+            "attempt_text": itemgetter("attempt_text"),
+            "learning_objective": itemgetter("learning_objective"),
+            "learner_level": itemgetter("learner_level"),
+            "memory_summary": itemgetter("memory_summary"),
+            "chat_history": itemgetter("chat_history"),
         }
     )
     return setup | prompt | llm | output_parser
@@ -404,29 +561,13 @@ Return 4 bullets max, focused on:
     return prompt | llm | output_parser
 
 
-def get_all_chains(
-    claude_sonnet,
-    claude_haiku,
-    retriever_course,
-    retriever_contents,
-    router_llm=None,
-):
-    if router_llm is None:
-        router_llm = claude_sonnet
-
-    router, chain_dict = unified_ta_chain_with_tools(
-        main_llm=claude_sonnet,
-        router_llm=router_llm,
-        retriever_course=retriever_course,
-        retriever_contents=retriever_contents,
-    )
-
+def get_all_chains(main_llm, light_llm):
     return {
-        "class_chain": class_chain(claude_sonnet),
-        "rag_chain": rag_chain(claude_haiku, retriever_course),
-        "step_chain": step_chain(claude_sonnet, retriever_contents),
-        "recap_chain": recap_chain(claude_haiku),
-        "summary_chain": summarize_memory_chain(claude_haiku),
-        "router": router,
-        "chain_dict": chain_dict,
+        "class_chain": class_chain(main_llm),
+        "rag_chain": rag_chain(light_llm),
+        "step_chain": step_chain(main_llm),
+        "practice_chain": practice_chain(main_llm),
+        "check_chain": check_chain(main_llm),
+        "recap_chain": recap_chain(light_llm),
+        "summary_chain": summarize_memory_chain(light_llm),
     }

@@ -1,11 +1,17 @@
+import os
+
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from pydantic import Field
 
+load_dotenv()
+
 # Create a couple of Global Variables
 TEMPERATURE = 0.2
-MAX_TOKENS = 512
+MAX_TOKENS = 1024
+
 
 class ModelWithFallback(BaseChatModel):
     """A wrapper around two LLM models that falls back to the second if the first fails.
@@ -74,6 +80,7 @@ class ModelWithFallback(BaseChatModel):
     def _llm_type(self) -> str:
         return f"ModelWithFallback({self.primary._llm_type}->{self.fallback._llm_type})"
 
+
 def create_model_with_fallback(
     primary_model: BaseChatModel,
     fallback_model: BaseChatModel
@@ -81,48 +88,60 @@ def create_model_with_fallback(
     """Creates a wrapper around the primary model that falls back to a secondary model if the primary fails"""
     return ModelWithFallback(primary=primary_model, fallback=fallback_model)
 
-openai_gpt4o_mini = ChatOpenAI(temperature=TEMPERATURE, 
-                 model="gpt-4o-mini",
-                 verbose=False,
-                 max_tokens=300,
-                 )
 
-openai_4o_mini_json = ChatOpenAI(temperature=TEMPERATURE,
-        model="gpt-4o-mini",
-        max_tokens=300,
-        model_kwargs={ "response_format": { "type": "json_object" } }
-        )
-
-# Primary OpenAI model for fallback and robust generation.
-openai_gpt4o = ChatOpenAI(temperature=0.1, 
-        model='gpt-4o',
-        )
-
-# Keep the original models for reference or direct use
-claude_sonnet = ChatAnthropic(
-        model='claude-sonnet-4-5',
-        temperature=TEMPERATURE,
-        max_tokens=MAX_TOKENS
-        )
-
-# define the Anthropic chat client with fallback
-claude_sonnet_with_fallback = create_model_with_fallback(
-    primary_model=claude_sonnet,
-    fallback_model=openai_gpt4o
+openai_gpt4o_mini = ChatOpenAI(
+    temperature=TEMPERATURE,
+    model="gpt-4o-mini",
+    verbose=False,
+    max_tokens=300,
 )
 
+openai_4o_mini_json = ChatOpenAI(
+    temperature=TEMPERATURE,
+    model="gpt-4o-mini",
+    max_tokens=300,
+    model_kwargs={"response_format": {"type": "json_object"}},
+)
 
+openai_gpt4o = ChatOpenAI(
+    temperature=0.1,
+    model="gpt-4o",
+)
+
+# Primary tutoring model via xAI's OpenAI-compatible API. Requires XAI_API_KEY.
+grok_4_5 = ChatOpenAI(
+    model="grok-4.5",
+    temperature=TEMPERATURE,
+    max_tokens=MAX_TOKENS,
+    api_key=os.getenv("XAI_API_KEY"),
+    base_url="https://api.x.ai/v1",
+)
+
+# Fallback tutoring model (Anthropic Sonnet 5).
+# Sonnet 5 rejects temperature/top_p/top_k; omit sampling params.
+# Disable adaptive thinking for lower latency/cost on fallback turns.
+claude_sonnet_5 = ChatAnthropic(
+    model="claude-sonnet-5",
+    max_tokens=MAX_TOKENS,
+    thinking={"type": "disabled"},
+)
+
+# Main tutoring LLM: Grok 4.5 primary, Sonnet 5 fallback
+grok_with_sonnet_fallback = create_model_with_fallback(
+    primary_model=grok_4_5,
+    fallback_model=claude_sonnet_5,
+)
+
+# Back-compat alias used by app.py / chain wiring
+claude_sonnet_with_fallback = grok_with_sonnet_fallback
 
 claude_haiku = ChatAnthropic(
-        model='claude-haiku-4-5',
-        temperature=TEMPERATURE,
-        max_tokens=MAX_TOKENS
-        )
-
-# Create claude-haiku with fallback to gpt4o-mini
-claude_haiku_with_fallback = create_model_with_fallback(
-    primary_model=claude_haiku,
-    fallback_model=openai_gpt4o_mini
+    model="claude-haiku-4-5",
+    temperature=TEMPERATURE,
+    max_tokens=MAX_TOKENS,
 )
 
-
+claude_haiku_with_fallback = create_model_with_fallback(
+    primary_model=claude_haiku,
+    fallback_model=openai_gpt4o_mini,
+)
