@@ -54,6 +54,53 @@ CURRICULUM_TOPICS = [
     "SAS JMP / Excel workflows",
 ]
 
+# Subtopics shown after a student picks a top-level curriculum topic.
+CURRICULUM_SUBTOPICS = {
+    "Descriptive statistics": [
+        "Mean / median / mode",
+        "Variance and standard deviation",
+        "Distributions and shape",
+        "Percentiles and boxplots",
+        "Exploratory data analysis",
+    ],
+    "Probability": [
+        "Basic probability rules",
+        "Conditional probability",
+        "Bayes theorem",
+        "Random variables",
+        "Expected value",
+    ],
+    "Hypothesis testing": [
+        "Null vs alternative hypotheses",
+        "p-values and significance",
+        "t-tests",
+        "ANOVA",
+        "Type I / Type II errors",
+    ],
+    "Regression": [
+        "Simple linear regression",
+        "Multiple regression",
+        "Coefficient interpretation",
+        "R-squared and fit",
+        "Assumptions and diagnostics",
+        "Multicollinearity",
+    ],
+    "Decision analysis": [
+        "Decision trees",
+        "Expected value of decisions",
+        "Sensitivity analysis",
+        "Payoff tables",
+        "Value of information",
+    ],
+    "SAS JMP / Excel workflows": [
+        "JMP basics",
+        "Excel Data Analysis ToolPak",
+        "Building a model in Excel",
+        "Reading JMP / Excel output",
+        "Common workflow tips",
+    ],
+}
+
 # Backward-compatible alias used by topic pills in the UI.
 COURSE_TOPIC_CHOICES = CURRICULUM_TOPICS
 
@@ -69,9 +116,27 @@ _TOPIC_KEYWORDS = {
     "Probability": ["probability", "bayes", "conditional", "random variable"],
     "Hypothesis testing": ["hypothesis", "p-value", "significance", "t-test", "anova"],
     "Regression": ["regression", "coefficient", "r-squared", "multicollinearity"],
-    "Decision analysis": ["excel model", 'sensitivity analysis', 'decision tree development / solution'],
+    "Decision analysis": [
+        "excel model",
+        "sensitivity analysis",
+        "decision tree development / solution",
+    ],
     "SAS JMP / Excel workflows": ["jmp", "excel", "data analysis toolpak"],
 }
+
+
+def get_subtopics(topic: str) -> list:
+    """Return subtopic labels for a curriculum topic, or an empty list."""
+    return list(CURRICULUM_SUBTOPICS.get((topic or "").strip(), []))
+
+
+def format_topic_focus(topic: str = "", subtopic: str = "") -> str:
+    """Build a display/query focus string from topic and optional subtopic."""
+    topic = (topic or "").strip()
+    subtopic = (subtopic or "").strip()
+    if topic and subtopic:
+        return f"{topic}: {subtopic}"
+    return subtopic or topic
 
 _LOGISTICS_KEYWORDS = {
     "grading": "Course policy and grading logistics",

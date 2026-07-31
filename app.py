@@ -79,9 +79,9 @@ QUICK_ACTIONS = [
     },
 ]
 
-CONTINUE_ACTIONS = [
+FOLLOW_UP_ACTIONS = [
     {
-        "label": "Another one on this topic",
+        "label": "Practice this topic",
         "intent": "practice_same",
     },
     {
@@ -91,6 +91,10 @@ CONTINUE_ACTIONS = [
     {
         "label": "Switch topic",
         "intent": "switch_topic",
+    },
+    {
+        "label": "Check my attempt",
+        "intent": "check",
     },
 ]
 
@@ -175,27 +179,30 @@ def _resolve_quick_action(action: dict, chat_history):
     return "", False
 
 
-def _resolve_continue_action(action: dict):
-    """Resolve a continue-practice action into a concrete query or clarifying state."""
+def _conversation_started(chat_history) -> bool:
+    """True once the student has sent at least one message."""
+    return any("Human" in str(type(message)) for message in (chat_history or []))
+
+
+def _resolve_follow_up_action(action: dict):
+    """Resolve a post-conversation follow-up into a query or clarifying turn."""
     intent = action["intent"]
     topic = (st.session_state.get("last_practice_topic") or "").strip()
+    if not topic:
+        topic = chains.infer_topic_from_history(st.session_state.chat_history)
 
     if intent == "practice_same":
-        if not topic:
-            topic = chains.infer_topic_from_history(st.session_state.chat_history)
         if topic:
             return chains.compose_quick_action_query("practice", topic=topic), False
         _append_clarifying_turn(
             action["label"],
-            "What topic do you want to practice? Pick one below or type it in the chat.",
+            "What would you like to practice? Pick a topic below or type it in the chat.",
             "practice",
             "topic",
         )
         return "", True
 
     if intent == "practice_harder":
-        if not topic:
-            topic = chains.infer_topic_from_history(st.session_state.chat_history)
         if topic:
             return (
                 f"Generate a harder practice question on this ISOM 550 topic: {topic}. "
@@ -210,7 +217,6 @@ def _resolve_continue_action(action: dict):
         return "", True
 
     if intent == "switch_topic":
-        st.session_state.show_continue_actions = False
         _append_clarifying_turn(
             action["label"],
             "Which topic would you like to switch to? Pick one below or type it in the chat.",
@@ -219,30 +225,77 @@ def _resolve_continue_action(action: dict):
         )
         return "", True
 
+    if intent == "check":
+        _append_clarifying_turn(
+            action["label"],
+            "Paste your attempt in the chat, or attach a screenshot/file, and I'll check it.",
+            "check",
+            "attempt",
+        )
+        return "", True
+
     return "", False
 
 
-def _resolve_pending_intent(pending, typed_query, uploaded_files):
-    """Compose a concrete query once the student supplies the missing detail."""
+def _advance_to_subtopic_selection(pending: dict, parent_topic: str):
+    """Move from topic selection to subtopic pills for the chosen parent topic."""
+    parent_topic = (parent_topic or "").strip()
+    clarify = (
+        f"Which part of **{parent_topic}** do you want to focus on? "
+        "Pick a subtopic below or type it in the chat."
+    )
+    with st.chat_message("Human"):
+        _md(parent_topic)
+    with st.chat_message("AI", avatar="🦜"):
+        _md(clarify)
+    st.session_state.chat_history.append(HumanMessage(parent_topic))
+    st.session_state.chat_history.append(AIMessage(clarify))
+    st.session_state.pending_intent = {
+        "intent": pending["intent"],
+        "label": pending.get("label", parent_topic),
+        "needs": "subtopic",
+        "parent_topic": parent_topic,
+    }
+    st.session_state.pop("clarify_topic_pills", None)
+    st.session_state.pop("clarify_subtopic_pills", None)
+
+
+def _resolve_pending_intent(pending, selected_value, typed_query, uploaded_files):
+    """
+    Resolve a pending clarify step.
+
+    Returns (user_query, did_clarify_again).
+    did_clarify_again=True means we advanced topic -> subtopic and should rerun.
+    """
     intent = pending["intent"]
     needs = pending["needs"]
 
     if needs == "topic":
-        topic = (typed_query or "").strip()
-        if not topic:
-            return ""
-        return chains.compose_quick_action_query(intent, topic=topic)
+        choice = (selected_value or typed_query or "").strip()
+        if not choice:
+            return "", False
+
+        # Pill selection (or typed exact topic label) with subtopics -> ask subtopic next.
+        if choice in chains.CURRICULUM_TOPICS and chains.get_subtopics(choice):
+            _advance_to_subtopic_selection(pending, choice)
+            return "", True
+
+        # Typed free-form focus, or a topic with no subtopics -> generate now.
+        return chains.compose_quick_action_query(intent, topic=choice), False
+
+    if needs == "subtopic":
+        choice = (selected_value or typed_query or "").strip()
+        if not choice:
+            return "", False
+        focus = chains.format_topic_focus(pending.get("parent_topic", ""), choice)
+        return chains.compose_quick_action_query(intent, topic=focus), False
 
     if needs == "attempt":
         if not typed_query and not uploaded_files:
-            return ""
-        return chains.compose_quick_action_query(intent, attempt_text=typed_query)
+            return "", False
+        return chains.compose_quick_action_query(intent, attempt_text=typed_query), False
 
-    return typed_query
-
-
-def _should_show_continue_actions(tools_used):
-    return any(tool in {"generate_practice", "check_attempt"} for tool in tools_used)
+    return typed_query, False
 
 
 def _render_tool_calls(tool_calls):
@@ -272,8 +325,6 @@ def main():
         st.session_state.feedback_submitted_ids = []
     if "pending_intent" not in st.session_state:
         st.session_state.pending_intent = None
-    if "show_continue_actions" not in st.session_state:
-        st.session_state.show_continue_actions = False
     if "last_practice_topic" not in st.session_state:
         st.session_state.last_practice_topic = ""
     if "last_tool_calls" not in st.session_state:
@@ -352,21 +403,9 @@ def main():
         elif st.session_state.last_tool_calls:
             st.caption("Retrieved chunks: _(none for this tool)_")
 
-    # Continue-practice buttons after a practice/check turn.
-    selected_continue_action = None
-    if st.session_state.show_continue_actions and not st.session_state.pending_intent:
-        st.caption("Keep practicing")
-        continue_cols = st.columns(len(CONTINUE_ACTIONS))
-        for idx, action in enumerate(CONTINUE_ACTIONS):
-            if continue_cols[idx].button(
-                action["label"],
-                key=f"continue_action_{idx}",
-                width='stretch',
-            ):
-                selected_continue_action = action
-
-    # Topic pills while waiting for a clarifying detail.
+    # Topic / subtopic pills while waiting for a clarifying detail.
     selected_topic = None
+    selected_subtopic = None
     pending = st.session_state.pending_intent
     if pending and pending.get("needs") == "topic":
         st.caption("Suggested topics")
@@ -377,19 +416,51 @@ def main():
             key="clarify_topic_pills",
             label_visibility="collapsed",
         )
+    elif pending and pending.get("needs") == "subtopic":
+        parent = pending.get("parent_topic", "")
+        subtopics = chains.get_subtopics(parent)
+        st.caption(f"Subtopics in {parent}" if parent else "Suggested subtopics")
+        if subtopics:
+            selected_subtopic = st.pills(
+                "Course subtopics",
+                options=subtopics,
+                selection_mode="single",
+                key="clarify_subtopic_pills",
+                label_visibility="collapsed",
+            )
+
+    conversation_started = _conversation_started(st.session_state.chat_history)
 
     # Pin composer controls so students always see them while scrolling history.
     selected_action = None
+    selected_follow_up = None
     with st.bottom:
-        st.caption("Quick actions")
-        qa_cols = st.columns(len(QUICK_ACTIONS))
-        for idx, action in enumerate(QUICK_ACTIONS):
-            if qa_cols[idx].button(action["label"], key=f"quick_action_{idx}", width='stretch'):
-                selected_action = action
+        if not conversation_started and not pending:
+            st.caption("Quick actions")
+            qa_cols = st.columns(len(QUICK_ACTIONS))
+            for idx, action in enumerate(QUICK_ACTIONS):
+                if qa_cols[idx].button(
+                    action["label"],
+                    key=f"quick_action_{idx}",
+                    width="stretch",
+                ):
+                    selected_action = action
+        elif conversation_started and not pending:
+            st.caption("What next?")
+            follow_cols = st.columns(len(FOLLOW_UP_ACTIONS))
+            for idx, action in enumerate(FOLLOW_UP_ACTIONS):
+                if follow_cols[idx].button(
+                    action["label"],
+                    key=f"follow_up_action_{idx}",
+                    width="stretch",
+                ):
+                    selected_follow_up = action
 
         chat_placeholder = "Ask a question, or paste a screenshot of your work..."
         if pending and pending.get("needs") == "topic":
             chat_placeholder = "Type the topic you want to focus on..."
+        elif pending and pending.get("needs") == "subtopic":
+            chat_placeholder = "Type the subtopic you want to focus on..."
         elif pending and pending.get("needs") == "attempt":
             chat_placeholder = "Paste your attempt, or attach a file..."
 
@@ -405,39 +476,52 @@ def main():
     user_query = ""
     display_user_text = ""
 
-    # 1) Continue-practice action click
-    if selected_continue_action is not None:
-        composed, did_clarify = _resolve_continue_action(selected_continue_action)
+    # 1) Follow-up action click (after conversation has started)
+    if selected_follow_up is not None:
+        composed, did_clarify = _resolve_follow_up_action(selected_follow_up)
         if did_clarify:
             st.rerun()
         user_query = composed
-        display_user_text = selected_continue_action["label"]
+        display_user_text = selected_follow_up["label"]
 
-    # 2) Fresh quick action click
+    # 2) Fresh quick action click (only before conversation starts)
     elif selected_action is not None:
         st.session_state.pending_intent = None
-        st.session_state.show_continue_actions = False
         composed, did_clarify = _resolve_quick_action(
             selected_action, st.session_state.chat_history
         )
         if did_clarify:
             st.rerun()
         user_query = composed
-        inferred_topic = chains.infer_topic_from_history(st.session_state.chat_history)
-        if inferred_topic:
-            display_user_text = f"{selected_action['label']} — {inferred_topic}"
-        else:
-            display_user_text = selected_action["label"]
+        display_user_text = selected_action["label"]
 
     # 3) Completing a pending clarifying turn
     elif pending is not None:
-        detail_text = selected_topic or typed_query
-        composed = _resolve_pending_intent(pending, detail_text, uploaded_files)
+        selected_value = None
+        if pending.get("needs") == "topic":
+            selected_value = selected_topic
+        elif pending.get("needs") == "subtopic":
+            selected_value = selected_subtopic
+
+        composed, did_clarify_again = _resolve_pending_intent(
+            pending, selected_value, typed_query, uploaded_files
+        )
+        if did_clarify_again:
+            st.rerun()
         if composed:
+            detail_text = selected_value or typed_query
+            if pending.get("needs") == "subtopic":
+                detail_text = chains.format_topic_focus(
+                    pending.get("parent_topic", ""),
+                    detail_text,
+                )
             display_user_text = detail_text if detail_text else "Attached attempt for review"
             user_query = composed
             st.session_state.pending_intent = None
             st.session_state.pop("clarify_topic_pills", None)
+            st.session_state.pop("clarify_subtopic_pills", None)
+            if detail_text:
+                st.session_state.last_practice_topic = detail_text
 
     # 4) Normal free-form chat
     else:
@@ -576,15 +660,11 @@ def main():
                         "attempt_check": learning_profile["attempt_check"],
                     }))
 
-        if _should_show_continue_actions(tools_used):
-            st.session_state.show_continue_actions = True
-            practice_topic = turn_result.get("practice_topic") or chains.infer_topic_from_history(
-                st.session_state.chat_history
-            )
-            if practice_topic:
-                st.session_state.last_practice_topic = practice_topic
-        else:
-            st.session_state.show_continue_actions = False
+        practice_topic = turn_result.get("practice_topic") or chains.infer_topic_from_history(
+            st.session_state.chat_history + [HumanMessage(query_for_model)]
+        )
+        if practice_topic:
+            st.session_state.last_practice_topic = practice_topic
 
         # append AI response to chat history
         history_user_text = (display_user_text or user_query) + attachment_note
