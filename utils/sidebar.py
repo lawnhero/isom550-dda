@@ -1,6 +1,26 @@
 import streamlit as st
 from datetime import datetime
 
+def diagnostics_unlocked():
+    """
+    Agent diagnostics are an instructor tool, not a student-facing control.
+
+    Unlocked by adding ?debug=<value> to the app URL. When a `diagnostics_token`
+    secret is configured (deployed app), the value must match it exactly. With no
+    secret configured (local dev), any truthy value works.
+    """
+    supplied = st.query_params.get("debug")
+    if not supplied:
+        return False
+    try:
+        expected = st.secrets.get("diagnostics_token")
+    except Exception:
+        # No secrets.toml present (local dev) - fall back to the simple flag.
+        expected = None
+    if expected:
+        return supplied == expected
+    return supplied.lower() in {"1", "true", "yes", "on"}
+
 def clear_chat_history():
     """Clear the chat history and reset conversation."""
     st.session_state.chat_history = []
@@ -61,11 +81,15 @@ def sidebar():
             step=2,
             help="Number of recent messages considered before using summary memory.",
         )
-        show_diagnostics = st.toggle(
-            "Show agent diagnostics",
-            value=st.session_state.get("show_diagnostics", False),
-            help="Display tool calls and retrieval debug info for development.",
-        )
+        # Instructor-only: hidden unless unlocked via ?debug= in the URL.
+        if diagnostics_unlocked():
+            show_diagnostics = st.toggle(
+                "Show agent diagnostics",
+                value=st.session_state.get("show_diagnostics", False),
+                help="Display tool calls and retrieval debug info for development.",
+            )
+        else:
+            show_diagnostics = False
         st.session_state.memory_window = memory_window
         st.session_state.show_diagnostics = show_diagnostics
 
