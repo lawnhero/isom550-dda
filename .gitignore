@@ -12,5 +12,10 @@ etc/
 !.gitignore
 !/data/
 
+# Track the Streamlit theme/server config so deployments match local.
+# Never track local secrets: this line must stay AFTER the negation above.
+!.streamlit/
+.streamlit/secrets.toml
+
 # Ignore the trial file
 trial.ipynb
