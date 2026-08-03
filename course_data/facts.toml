@@ -1,0 +1,124 @@
+# Tier A — hand-maintained course facts
+#
+# This file is written by a HUMAN and only ever read by the app.
+# The sync script never touches it. (Canvas-derived data lives in schedule.json.)
+#
+# RULE: if Canvas already owns a fact, do NOT restate it here.
+#   - due dates, assignment names, module list  -> schedule.json (synced)
+#   - office hours, grading weights, policies   -> this file (hand-maintained)
+# Duplicating a fact across both files recreates the drift problem.
+#
+# Review every field at the start of each term and bump `last_reviewed`.
+
+term          = "Summer 2026"
+last_reviewed = "2026-08-03"
+
+# How many days schedule.json may go un-synced before the tutor stops stating
+# specific due dates and tells students to check Canvas instead.
+#
+# Set this from the longest expected gap between syncs, not from class cadence.
+# At 2 classes/week the normal gap is 3-4 days either way; what stretches it is
+# term breaks. Observed max gap in Summer 2026: 4 days.
+#   Summer (no breaks)                    ->  7
+#   Fall/Spring (fall break, Thanksgiving,
+#                spring break: 9-11 days) -> 12-14
+# Too tight is not free: a false trip silences every date answer for a week,
+# exactly when students are catching up after a break.
+stale_after_days = 7
+
+
+[course]
+code       = "ISOM 550"
+title      = "Data & Decision Analytics"
+canvas_url = "https://canvas.emory.edu/courses/162137"
+meeting    = ""   # TODO: days, time, room
+
+
+[instructor]
+name  = "Prof Wen Gu"
+title = "Associate Professor, ISOM area"
+email = "wenjun.gu@emory.edu"
+
+office_hours = "Wednesdays 1:00-2:00 PM. By appointment"  
+office       =  "GBS 415"
+
+
+[[tas]]
+name  = "Jeff Shibata"
+email = "jeff.shibata@emory.edu"
+
+[[tas]]
+name  = "Shiv Uppal"
+email = "shiv.uppal@emory.edu"
+
+
+[grading]
+# Verify against the syllabus each term.
+# NOTE: Canvas assignment groups (Individual / Group / Quizzes / Final) may also
+# carry these weights. If Canvas has them, delete this block and let the sync
+# own it -- see the no-duplication rule at the top of this file.
+weights = """
+| Grading item                 | Weight |
+|------------------------------|--------|
+| Engagement and participation | 20%    |
+| Group case assignments       | 30%    |
+| Individual case assignments  | 20%    |
+| Individual final exam        | 30%    |
+"""
+
+late_policy  = ""   # TODO — most-asked logistics question in most courses
+regrade      = ""   # TODO — how to request a regrade
+letter_scale = ""   # TODO — letter grade cutoffs
+
+
+[materials]
+body = """
+**Textbook (strongly recommended)**
+*Practical Data Analysis with JMP*, Carver, 3rd Edition. Covers typical data
+analysis topics; not all chapters are covered in class, but it is a useful
+reference during and after the course. The book uses JMP, though Excel is also
+used. Available at the SAS Bookstore: https://support.sas.com/en/books.html
+
+**Canvas course site**
+Most course materials are posted on Canvas: readings, project descriptions,
+practice problems, and videos.
+
+**Required case studies**
+Three HBP cases available for purchase via Study.net. Additional cases are
+posted on Canvas.
+"""
+
+
+# Structured separately from [materials] because the software route needs the
+# version assumption to answer JMP/Excel questions without guessing menu paths.
+[software]
+excel     = "Microsoft Excel 2016 or later"
+jmp       = "JMP 18 Student recommended; other versions may work"
+addins    = "TreePlan Excel add-in, for decision tree modeling"
+
+
+[objectives]
+body = """
+By the end of this course, you will be able to:
+
+- Explain the role of data and models in the decision-making process, and how
+  they support rather than determine decisions.
+- Decide how to structure a business problem and determine the data needs.
+- Explain the difficulties of collecting data, and why effective decision making
+  depends on data quality.
+- Decide what analytical tools are appropriate in different business contexts.
+- Evaluate the quality of models created with statistical tools.
+- Translate analytical results into a statement of the actions to be taken.
+- Gain exposure to various implementation environments, including Excel, SAS
+  JMP, Python, and SQL.
+"""
+
+
+# Nothing here is currently answerable by the TA. The AI-use policy matters most:
+# this app IS an AI tool, the sidebar tells students "use for learning, not
+# cheating", and students will ask this bot whether using this bot is allowed.
+[policies]
+ai_use             = ""   # TODO — is using this TA permitted? on what work?
+academic_integrity = ""   # TODO
+attendance         = ""   # TODO
+group_formation    = ""   # TODO — how groups are formed, can they change

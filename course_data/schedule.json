@@ -1,0 +1,403 @@
+{
+  "generated_at": "2026-08-03T20:03:42Z",
+  "source": "canvas",
+  "course": {
+    "canvas_id": "162137",
+    "code": "SU26_ISOM_550Y_3201",
+    "name": "ISOM-550Y-3201: Data & Decision Analytics - Summer 2026",
+    "term": "Summer 2026",
+    "timezone": "America/New_York",
+    "url": "https://canvas.emory.edu/courses/162137"
+  },
+  "grading_weights": [],
+  "modules": [
+    {
+      "position": 1,
+      "name": "Class 0: Stats Workshop"
+    },
+    {
+      "position": 2,
+      "name": "Software Packages"
+    },
+    {
+      "position": 3,
+      "name": "M1: Descriptive Analytics"
+    },
+    {
+      "position": 4,
+      "name": "M2: Predictive Analytics"
+    },
+    {
+      "position": 5,
+      "name": "Module 3: Decision Analytics"
+    },
+    {
+      "position": 6,
+      "name": "Module 4: Next Step and Review"
+    }
+  ],
+  "assignments": [
+    {
+      "name": "Individual Eastville",
+      "group": "Post-Class Individual Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-03T03:59:59Z",
+      "due_local": "Thu Jul 2, 2026, 11:59 PM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257053"
+    },
+    {
+      "name": "Pulse Check Survey",
+      "group": "Engagement and Participation ",
+      "kind": "assignment",
+      "due_utc": "2026-07-07T03:30:00Z",
+      "due_local": "Mon Jul 6, 2026, 11:30 PM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257041"
+    },
+    {
+      "name": "Group Pilgrim Bank-Descriptive",
+      "group": "Post-Class Group Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-08T03:59:59Z",
+      "due_local": "Tue Jul 7, 2026, 11:59 PM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257045"
+    },
+    {
+      "name": "Individual Baseball Assignment",
+      "group": "Post-Class Individual Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-09T12:30:00Z",
+      "due_local": "Thu Jul 9, 2026, 8:30 AM EDT",
+      "points": 5.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257051"
+    },
+    {
+      "name": "Group Pilgrim bank - Predictive",
+      "group": "Post-Class Group Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-14T12:30:00Z",
+      "due_local": "Tue Jul 14, 2026, 8:30 AM EDT",
+      "points": 20.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257046"
+    },
+    {
+      "name": "Group Store24 - Present Findings",
+      "group": "Post-Class Group Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-22T03:59:00Z",
+      "due_local": "Tue Jul 21, 2026, 11:59 PM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1262171"
+    },
+    {
+      "name": "Store24 Analysis",
+      "group": "Post-Class Individual Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-22T03:59:59Z",
+      "due_local": "Tue Jul 21, 2026, 11:59 PM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257047"
+    },
+    {
+      "name": "Individual Drug Reaction",
+      "group": "Post-Class Individual Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-23T12:30:00Z",
+      "due_local": "Thu Jul 23, 2026, 8:30 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257052"
+    },
+    {
+      "name": "Decision Basics Quiz",
+      "group": "Engagement and Participation ",
+      "kind": "quiz",
+      "due_utc": "2026-07-24T12:30:00Z",
+      "due_local": "Fri Jul 24, 2026, 8:30 AM EDT",
+      "points": 11.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257040"
+    },
+    {
+      "name": "Individual BTG Tree",
+      "group": "Post-Class Individual Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-27T12:30:00Z",
+      "due_local": "Mon Jul 27, 2026, 8:30 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257050"
+    },
+    {
+      "name": "Group BTG-Sensitivity",
+      "group": "Post-Class Group Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-07-30T12:30:00Z",
+      "due_local": "Thu Jul 30, 2026, 8:30 AM EDT",
+      "points": 15.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257044"
+    },
+    {
+      "name": "Final Course Assessment",
+      "group": "Course Final Assessment",
+      "kind": "quiz",
+      "due_utc": "2026-08-04T03:59:00Z",
+      "due_local": "Mon Aug 3, 2026, 11:59 PM EDT",
+      "points": 20.0,
+      "url": "https://canvas.emory.edu/courses/162137/assignments/1257042"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Access and Install JMP from Emory's Software Distribution",
+      "url": "https://canvas.emory.edu/courses/162137/pages/access-and-install-jmp-from-emorys-software-distribution"
+    },
+    {
+      "title": "An example of presenting your findings from regression",
+      "url": "https://canvas.emory.edu/courses/162137/pages/an-example-of-presenting-your-findings-from-regression"
+    },
+    {
+      "title": "Annotated Notes and Recording",
+      "url": "https://canvas.emory.edu/courses/162137/pages/annotated-notes-and-recording"
+    },
+    {
+      "title": "Class 4 Class Materials: Probability and Value of Information",
+      "url": "https://canvas.emory.edu/courses/162137/pages/class-4-class-materials-probability-and-value-of-information"
+    },
+    {
+      "title": "Describe data numerically",
+      "url": "https://canvas.emory.edu/courses/162137/pages/describe-data-numerically"
+    },
+    {
+      "title": "Describe data numerically with Excel",
+      "url": "https://canvas.emory.edu/courses/162137/pages/describe-data-numerically-with-excel"
+    },
+    {
+      "title": "Download and Install JMP Student Edition",
+      "url": "https://canvas.emory.edu/courses/162137/pages/download-and-install-jmp-student-edition"
+    },
+    {
+      "title": "Excel Sensitivity Analysis: Goal Seek Falafel",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-sensitivity-analysis-goal-seek-falafel"
+    },
+    {
+      "title": "Excel Simulation: Decision Tree with Treeplan",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-simulation-decision-tree-with-treeplan"
+    },
+    {
+      "title": "Excel Simulation: Linear Regression",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-simulation-linear-regression"
+    },
+    {
+      "title": "Excel Simulation: Numerical Descriptive-Toolpak",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-simulation-numerical-descriptive-toolpak"
+    },
+    {
+      "title": "Excel Simulation: PivotTable for Data Summarization",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-simulation-pivottable-for-data-summarization"
+    },
+    {
+      "title": "Excel-Simulation: Scatter plot- Correlation",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-simulation-scatter-plot-correlation"
+    },
+    {
+      "title": "Excel: Assess the risk with Excel Sensitivity Tools",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-assess-the-risk-with-excel-sensitivity-tools"
+    },
+    {
+      "title": "Excel: Describe data graphically with Histogram and Scatterplot",
+      "url": "https://canvas.emory.edu/courses/162137/pages/excel-describe-data-graphically-with-histogram-and-scatterplot"
+    },
+    {
+      "title": "Fernbank Questions",
+      "url": "https://canvas.emory.edu/courses/162137/pages/fernbank-questions"
+    },
+    {
+      "title": "Getting started with Excel (Optional)",
+      "url": "https://canvas.emory.edu/courses/162137/pages/getting-started-with-excel-optional"
+    },
+    {
+      "title": "Golf like a Pro",
+      "url": "https://canvas.emory.edu/courses/162137/pages/golf-like-a-pro"
+    },
+    {
+      "title": "Install Treeplan Excel Add-in",
+      "url": "https://canvas.emory.edu/courses/162137/pages/install-treeplan-excel-add-in"
+    },
+    {
+      "title": "Install Treeplan Excel Add-in [Improved]",
+      "url": "https://canvas.emory.edu/courses/162137/pages/install-treeplan-excel-add-in-improved"
+    },
+    {
+      "title": "Installation Guide: MySQL Workbench",
+      "url": "https://canvas.emory.edu/courses/162137/pages/installation-guide-mysql-workbench"
+    },
+    {
+      "title": "Interactive Excel: Goal Seek and Data Table",
+      "url": "https://canvas.emory.edu/courses/162137/pages/interactive-excel-goal-seek-and-data-table"
+    },
+    {
+      "title": "Interactive Video: Understand the future with probability",
+      "url": "https://canvas.emory.edu/courses/162137/pages/interactive-video-understand-the-future-with-probability"
+    },
+    {
+      "title": "ISOM 550Y DDA",
+      "url": "https://canvas.emory.edu/courses/162137/pages/isom-550y-dda"
+    },
+    {
+      "title": "ISOM550 Course Stream",
+      "url": "https://canvas.emory.edu/courses/162137/pages/isom550-course-stream"
+    },
+    {
+      "title": "JMP Descriptive Stat and Graph",
+      "url": "https://canvas.emory.edu/courses/162137/pages/jmp-descriptive-stat-and-graph"
+    },
+    {
+      "title": "JMP Getting Started",
+      "url": "https://canvas.emory.edu/courses/162137/pages/jmp-getting-started"
+    },
+    {
+      "title": "JMP Regression",
+      "url": "https://canvas.emory.edu/courses/162137/pages/jmp-regression"
+    },
+    {
+      "title": "JMP Simulation - Regression",
+      "url": "https://canvas.emory.edu/courses/162137/pages/jmp-simulation-regression"
+    },
+    {
+      "title": "Probability and Odds, which one to use?",
+      "url": "https://canvas.emory.edu/courses/162137/pages/probability-and-odds-which-one-to-use"
+    },
+    {
+      "title": "Recording: Conditional Probability",
+      "url": "https://canvas.emory.edu/courses/162137/pages/recording-conditional-probability"
+    },
+    {
+      "title": "Regression- Collinearity Direction",
+      "url": "https://canvas.emory.edu/courses/162137/pages/regression-collinearity-direction"
+    },
+    {
+      "title": "Regression: Excel Dummy for style",
+      "url": "https://canvas.emory.edu/courses/162137/pages/regression-excel-dummy-for-style"
+    },
+    {
+      "title": "Regression: Intro to Nonlinear Regression",
+      "url": "https://canvas.emory.edu/courses/162137/pages/regression-intro-to-nonlinear-regression"
+    },
+    {
+      "title": "Regression: Use Categorical data Part 1",
+      "url": "https://canvas.emory.edu/courses/162137/pages/regression-use-categorical-data-part-1"
+    },
+    {
+      "title": "Simulation Excel: Creating Histogram",
+      "url": "https://canvas.emory.edu/courses/162137/pages/simulation-excel-creating-histogram"
+    },
+    {
+      "title": "Simulation on Sensitivity in Excel: Data Tables",
+      "url": "https://canvas.emory.edu/courses/162137/pages/simulation-on-sensitivity-in-excel-data-tables"
+    },
+    {
+      "title": "Simulation: JMP Start and Descriptive",
+      "url": "https://canvas.emory.edu/courses/162137/pages/simulation-jmp-start-and-descriptive"
+    }
+  ],
+  "announcements": [
+    {
+      "title": "Final Course Assessment is now open",
+      "posted_utc": "2026-08-02T15:41:19Z",
+      "posted_local": "Sun Aug 2, 2026, 11:41 AM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1369918",
+      "body": "Hi everyone,\n\nA quick supportive reminder: the Final Course Assessment is now available.\n\nOpen: Sunday, Aug 2\n\nDue: Monday, Aug 3 at 11:59 PM\n\nThis is an individual assessment. It is open-note and open-book, and you may use course materials freely. Please do your own work — no collaboration with classmates or anyone else.\n\nBefore you start the Canvas quiz, review the question statements and complete your analysis first:\n\nFernbank Questions (data analytics)\n\nGolf like a Pro (decision analytics)\n\nOnce you begin the quiz, you’ll have 24 hours in one sitting to enter your answers. The quiz still locks at the deadline even if time remains on the 24-hour clock, so plan a window that works for you.\n\nYou’ve put in strong work this term — trust your preparation, take it one question at a time, and do your best.\n\nIf you need help during the exam window, email me or we can set up a quick Zoom. I’m happy to support you.\n\nGood luck,\nProf. Gu"
+    },
+    {
+      "title": "Class 10 (7/30) Sensitivity, Value of Information, and Exam Review",
+      "posted_utc": "2026-07-30T19:59:57Z",
+      "posted_local": "Thu Jul 30, 2026, 3:59 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1369374",
+      "body": "Today we wrapped up sensitivity analysis on decision problems, then introduced value of information and connected it to a practical pricing question: why a renowned consulting firm like BCG can charge a higher price than a small regional firm. The core idea is that better information can change decisions and create measurable value — and that value helps explain differences in what clients are willing to pay.\n\nWe also reviewed the overall course structure and the logistics for the final exam. Per our discussion, we will OPEN the final assessment at 12:00 AM on Sunday 8/2 and CLOSE at 11:59 PM on Monday 8/3. You will have access to the exam question statements without starting the exam:\n\nFernbank Questions (data analytics)\n\nGolf like a Pro (decision analytics)\n\nPlease let me know if there are any questions during the exam period.\n\nHere is the course notes and recording for today.\n\nAssignments after class:\n\nComplete the course evaluation on Canvas before it closes. Your feedback is important as I continue to update and improve the course each year.\n\nReview our course materials, individual and group projects. Make sure you're familiar with the content.\n\nFor the BTG Sensitivity Analysis, I am sharing the solution for your reference: BTG-Complete-Solution.xlsx"
+    },
+    {
+      "title": "Final Course Assessment — updated schedule (open Sun 8/2, due Mon 8/3)",
+      "posted_utc": "2026-07-29T19:39:40Z",
+      "posted_local": "Wed Jul 29, 2026, 3:39 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1369075",
+      "body": "Per student request, we’re updating the schedule for the Final Course Assessment:\n\nOpens: Sunday, Aug 2\n\nDue: Monday, Aug 3\n\nPlease plan accordingly. The exam remains individual, open-note/open-book, with no collaboration. Review the question pages and complete your analysis before starting the Canvas quiz — once you begin, you’ll have 24 hours in one sitting, and the quiz still locks at the deadline even if time remains on the 24-hour clock.\n\nReach out if you have any questions."
+    },
+    {
+      "title": "Class 9 (7/27) Sensitivity Analysis",
+      "posted_utc": "2026-07-27T19:11:17Z",
+      "posted_local": "Mon Jul 27, 2026, 3:11 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1368357",
+      "body": "Today we introduced sensitivity analysis which explores the impact of inputs (Xs) on the outputs (y). To do so, we\n\nfirst develop a spreadsheet model, which consists of Input->Model-> Output, to represent the decision making process and visualize the impact of input on outputs. (Note that everything needs to be linked together.)\n\nNext, we employed Excel Data Table to visualize the impact of input X on output(s) over a range of values.\n\nWhen working on the data table, trying to approach from the table perspective and think about the columns and rows structure. Specifically, we have 1) first column, 2) first row, 3) cells, and 4) top left corner. \n\nFor ONE-var data table, we use the first row to represent the output(s)\n\nFor Two-var data table, we use the first row as 2nd input, and top-left corner as the output.\n\nFinally, we introduced Excel Goal Seek to identify the break-even value that makes the top two alternatives yield the same expected value. \n\nMathematically, we're finding the X value which makes y1=y2, or y1-y2 = 0\n\nNote that for Excel Goal Seek,\n\nThe Set Cell must be a formula related to output \n\nthe To Value Option must be a numerical value, not a formula. \n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nWork on the Simulation on Excel Data Tables \n\nWork on break-even analysis for the Falafel case\n\nComplete and submit Group BTG Sensitivity before next class. Complete BTG tree included in the assignment."
+    },
+    {
+      "title": "Class 8 (7/23) Decision Analysis in Excel",
+      "posted_utc": "2026-07-23T19:13:17Z",
+      "posted_local": "Thu Jul 23, 2026, 3:13 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1367828",
+      "body": "Today we reviewed decision trees and discussed how to solve a tree. Specifically, we implemented the backwards deduction process and started from the end of the tree and traced back.\n\nFor the end node, we summarize all the cash flows along the way\n\nFor an event (chance) node, we calculate the expected value (weighted average)\n\nFor a decision node, we choose the best (either maximize or minimize)\n\nNext, we worked on implementing Decision Analytics in Excel with the TreePlan add-in. We started by discussing the BTG case, and identified all the necessary components required for the case: the alternatives, the states of nature, and the outcomes. Next, we discussed how to (1) organize such information in Excel and (2) develop a decision tree with TreePlan. Finally, we worked on developing the Traynor Wharf branch of the BTG case.\n\nHere is the course notes and recording for today.\n\nAssignments after class:\n\nComplete and submit Individual BTG Tree before next class (due Mon 7/27 before class).\n\nSkim Noonan’s book on Decision analysis\n\nWork on the Simulation on Excel Data Tables"
+    },
+    {
+      "title": "Class 7 (7/20) Decision Basics",
+      "posted_utc": "2026-07-20T19:12:35Z",
+      "posted_local": "Mon Jul 20, 2026, 3:12 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1367066",
+      "body": "Today we reviewed two regression methods, OLS (linear) regression and logistic regression. We compared their main differences and discussed how to evaluate prediction quality. For the logistic model, we also spent time on interpretation: coefficients act on the log-odds scale, and the odds ratio has a multiplicative relationship with the odds — a one-unit change in X multiplies the odds by the odds ratio (rather than adding a fixed amount, as in linear regression).\n\nWe also started our transition from Data analytics to Decision analytics. Specifically, we discussed the main components to look for in a decision context: 1) Decision and alternatives, 2) (Uncertain) Events and corresponding States of Nature, and 3) Outcomes. Next, we organized the information in a graphical tool called a decision tree. We worked on how to develop a tree forwards (from left to right); next class, we will study how to solve a tree backwards (from right to left).\n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nComplete and submit Decision Basics Quiz before next class.\n\nWork on the Simulation on creating a decision tree\n\nRead Bistro-To-Go case and attempt creating the decision tree manually\n\nInstall treeplan add-in before next class. Additional help on installing the software is provided here (follow Mac or Windows instructions for your OS).\n\nComplete Individual Drug Reaction — due EOD Saturday."
+    },
+    {
+      "title": "Class 6 (7/16) Cases, Residual and Logistic Regression",
+      "posted_utc": "2026-07-17T00:30:47Z",
+      "posted_local": "Thu Jul 16, 2026, 8:30 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1366594",
+      "body": "Today we tried the same model building process on several cases, baseball, pilgrim, and store24. Note that the purpose of building a model may not always be about making prediction, and sometimes our goal is actually to understand relationship in the right (multiple regression) context. Specifically, for the store24 case, our goal was to understand the impact of tenure on the profitability. At the end, we conduct a simple cost and benefits analysis of the incentive. Please complete this analysis by considering the benefits from both the crew and manager tenure and submit a presentation slide.\n\nNext, we visited residual analytics to explore nonlinear patterns of quantitative X variables. We can do one of two things: 1) treat the X as a nominal if it takes a few values, and 2) introduce a quadratic form.\n\nFinally, we introduced logistic regression, which can help us predict a binary categorical variable, such as Yes or No. We interpret the model fit as well as the the impact of individual variables. \n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nComplete and submit Group Store24 Analysis assignment. Due before Tuesday EOD 7/21.\n\nInstall treeplan add-in before next class. Make sure we follow the installation instructions for your computer OS, Mac or Windows."
+    },
+    {
+      "title": "Class 5 (7/13) Categorical and model building",
+      "posted_utc": "2026-07-13T19:49:04Z",
+      "posted_local": "Mon Jul 13, 2026, 3:49 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1365986",
+      "body": "Today we discussed collinearity in multiple regression and leveraged categorical variables that are not binary. For regression purpose in Excel, we need to transform the variable into dummy variables, the basic binary form. Note that Excel and JMP use different baseline group, specifically Excel uses a particular category such as Cape Cod as baseline, while JMP uses the average of all categories as the baseline.\n\nNext, we summarized the model building process, which starts with descriptive analytics and ends with a final model that captures significant variables. Specifically, we introduced a backward deduction process to gradually exclude insignificant variables from the model until all variables are significant. \n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nComplete and submit Group Pilgrim bank - Predictive assignment. Due before Tuesday 8:30 AM.\n\nComplete and submit Group Store24 Analysis assignment. Due before next class.\n\nStudy simulation video on Collinearity Effects in Multiple Regression.  \n\nStudy simulation video Regression: Excel Dummy for style.  \n\nInvestigate what happened to RMS Titanic."
+    },
+    {
+      "title": "Pilgrim Group assignment new due date Tuesday morning",
+      "posted_utc": "2026-07-11T21:17:05Z",
+      "posted_local": "Sat Jul 11, 2026, 5:17 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1365466",
+      "body": "Per requested by some groups, we are extending the due date for Pilgrim Group Assginment to Tuesday 8:30 AM. Hope this would give each group more time to discuss their submission."
+    },
+    {
+      "title": "Class 4 (7/09) Multiple Regression with Categorical Variables",
+      "posted_utc": "2026-07-10T12:55:51Z",
+      "posted_local": "Fri Jul 10, 2026, 8:55 AM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1365173",
+      "body": "Today we continued to work on regression. \n\nWe first worked on the application stage of regression which entails making predictions with simple regression model. \n\nNext, we introduced R2 and multiple regression. The implementation is very similar to that for simple regression. So is the interpretation, except for the key difference of \"Controlling for other variables, or holding other variables constant....\". This additional phrase is important as it helps us see the marginal effect of a factor on the target. \n\nFinally, we discussed a little bit of the dark side of multiple regression, collinearity. It refers to the correlation between two X factors which affect the evaluation of individual impact on the target variable Y. \n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nComplete and submit Group Pilgrim bank - Predictive assignment. Due before next class.\n\nStudy simulation video on Collinearity Effects in Multiple Regression.  \n\nStudy store24 caseDownload store24 case Download store24 case."
+    },
+    {
+      "title": "Class 3 (7/6) Linear Regression for \"how much\"",
+      "posted_utc": "2026-07-06T19:30:43Z",
+      "posted_local": "Mon Jul 6, 2026, 3:30 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1364318",
+      "body": "In class 3, we differentiated slope from correlation. While correlation mainly focused on the direction and strength of a relationship, slope focuses on the \"how much\". Specifically, \"how much\" would Y change if X increases by one unit, or the rise/run. Other than adding a trendlline in Excel to identify the trend line, we studied how to implement linear regression with Analysis ToolPak. From the regression results, we can not only identify the slope, but also the evidences for determining\n\nwhether a trend is significant or random (p-value),\n\nthe regression model for prediction (y = mx +b)\n\nthe accuracy of the prediction (St Error of regression) \n\nNext, we extended our discussion to a multiple regression, which considers multiple X variables. We can follow similar way to interpret the significance and the slope of a variable in multiple regression.\n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nComplete and submit Group Pilgrim Bank Descriptive assignment. Due before next class on EOD Tuesday 7/7.\n\nComplete and submit Individual National League Baseball assignment. Due before Thursday class.\n\nRead the Baseball-DescriptionDownload Baseball-DescriptionDownload Baseball-Description, BaseballData.xlsxDownload BaseballData.xlsxDownload BaseballData.xlsx and ready to discuss each variable. \n\nStudy simulation on Implementing Simple regression with Excel Analysis ToolPak and with JMP Fit Model.\n\nStudy simulation on Excel Multiple regression with Analysis ToolPak."
+    },
+    {
+      "title": "Class 2 (7/1) Graph and Describe Two Variables",
+      "posted_utc": "2026-07-02T00:30:12Z",
+      "posted_local": "Wed Jul 1, 2026, 8:30 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1363938",
+      "body": "Today in class, we discussed how to describe One variable graphically and with SAS JMP. With that, we looked at the Pilgrim Bank case and examined two variables as an example, 9Profit and 9Online. Next, we implemented descriptive analytics for describing the correlation of Two Quantitative variables in Excel and JMP, both numerically (w. correlation coefficient r) and graphically (w. scatter plot). As well as the association between a Quantitative and categorical variable, numerically (w. difference in group means) and graphically (w. diamond graph). Such relationship serves as the foundation for prediction. \n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nStudy simulation videos on Scatter plot and JMP Descriptive. \n\nComplete and submit Individual Eastville, due EOD Thursday 7/2\n\nComplete and submit Group Pilgrim Bank Descriptive assignment. Due before next class on EOD Tuesday 7/7.\n\nRead the Baseball-DescriptionDownload Baseball-Description, BaseballData.xlsxDownload BaseballData.xlsx and ready to discuss each variable. \n\nStudy simulation on Implementing Simple regression with Excel Analysis ToolPak."
+    },
+    {
+      "title": "Class 1 (6/29) Describe One Variable Numerically and Graphically.",
+      "posted_utc": "2026-06-30T00:18:43Z",
+      "posted_local": "Mon Jun 29, 2026, 8:18 PM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1363599",
+      "body": "It's a pleasure meeting everyone today. I'm hopeful that we will have a great time together exploring how to leverage data for decision making. \n\nToday in class, we reviewed topics from stats workshop, we implemented descriptive analytics for One variable in Excel with Analysis ToolPak, both numerically (w. Descriptive Statistics) and graphically (w. Histogram). Obtaining these summaries are important, yet our main focus is on how to interpret these evidence in the context to develop a compelling story from data. And we treat the numbers (expected) and graphs (actually observed) as two sources of evidence to verify the story. \n\nHere is the course notes and recording for today. \n\nAssignments after class:\n\nComplete the Semester Start Pulse Check, due before next class\n\nStudy simulation videos on Excel Histogram and JMP Introduction and Descriptive. \n\nComplete and submit Individual Eastville Assignment, due date TBD\n\nRead Pilgrim case and ready to discuss each variable."
+    },
+    {
+      "title": "Welcome to ISOM 550Y Summer 2026 Edition",
+      "posted_utc": "2026-06-27T15:42:10Z",
+      "posted_local": "Sat Jun 27, 2026, 11:42 AM EDT",
+      "url": "https://canvas.emory.edu/courses/162137/discussion_topics/1362999",
+      "body": "It's great meeting everyone today. We talked about data scales and discussed how to describe one variable with graphs and statistics. We also emphasized the importance of communication skills and the mentality of challenging everything you see (ex: What's missing?).\n\nHere is the annotated notes and recordings. \n\nI'm very exciting that we will work together on exploring and leveraging data to support business decisions. Before we embark our journey, please have a look at the syllabus and tentative schedule. For your convenience, here are some highlights. \n\nTextbook: Practical Data Analysis with JMP by Carver. 3rd Edition. Can be purchased through SAS books, or Amazon. Ebook or paper both fine. \n\nCase Packages: Study.netLinks to an external site..\n\nSoftware for this course:\n\nMS Excel. Later than 2016 version should be OK. Available through Emory as part of Office 365. Check with GBS IT support or MBA Program office.\n\nJMP Student Edition from SAS. Follow the instruction here. \n\nTreeplan Excel add-in. Please read the instructions on how to install treeplan on Windows Download WindowsDownload Windows Download Windowsand MacDownload Mac. (Group Educational license Paid)\n\nLet me know if you have any questions. My email is wenjun.gu@emory.edu and Instagram: @WenGu.EmoryLinks to an external site..\n\nSee you on Monday. \n\nProf. Gu"
+    }
+  ]
+}

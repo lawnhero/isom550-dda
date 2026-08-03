@@ -19,3 +19,6 @@ etc/
 
 # Ignore the trial file
 trial.ipynb
+
+# Exported analytics CSVs
+analytics/*.csv

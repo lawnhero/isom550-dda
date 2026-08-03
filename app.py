@@ -8,7 +8,7 @@ import utils.chains_lcel as chains
 from utils.agent_graph import build_ta_agent, run_ta_turn
 from utils.sidebar import sidebar, update_session_stats
 import utils.llm_models as llms
-from utils.ta_tools import TurnArtifacts, format_source_block_from_debug
+from utils.ta_tools import TurnArtifacts
 
 # Set the page_title
 st.set_page_config(
@@ -19,7 +19,6 @@ st.set_page_config(
 from utils.utils import (
     load_db,
     query_db_connection,
-    process_and_store_query,
     build_event_payload,
     store_event,
     store_feedback,
@@ -79,6 +78,16 @@ QUICK_ACTIONS = [
     },
 ]
 
+# Concrete openers for students who do not yet know what to ask. Shown in the
+# empty main area before the first question, where they cost no extra space.
+STARTER_PROMPTS = [
+    "When is the midterm exam?",
+    "What's the grading policy?",
+    "Help with Assignment 3",
+    "Guide me through regression analysis",
+    "How do I interpret this statistical output?",
+]
+
 FOLLOW_UP_ACTIONS = [
     {
         "label": "Practice this topic",
@@ -123,6 +132,24 @@ def _escape_md_dollars(text: str) -> str:
 def _md(text: str):
     """Render markdown with $ signs escaped for Streamlit LaTeX."""
     st.markdown(_escape_md_dollars(text))
+
+
+def _render_retrieval_sources(retrieval_debug: list, *, key: str) -> None:
+    """Show retrieved course materials in a collapsed expander."""
+    if not retrieval_debug:
+        return
+    with st.expander(
+        f"Sources ({len(retrieval_debug)})",
+        expanded=False,
+        icon=":material/library_books:",
+        key=key,
+    ):
+        for row in retrieval_debug:
+            source = row.get("source") or "Unknown source"
+            preview = (row.get("preview") or "").strip()
+            st.markdown(f"**{source}**")
+            if preview:
+                st.caption(preview)
 
 
 def _write_stream_md(stream):
@@ -331,16 +358,14 @@ def main():
         st.session_state.last_tool_calls = []
     if "last_retrieval_debug" not in st.session_state:
         st.session_state.last_retrieval_debug = []
+    if "message_sources" not in st.session_state:
+        st.session_state.message_sources = {}
 
     st.header("Virtual TA - ISOM 550 DDA")
     sidebar_settings = sidebar()
     initial_text = (
-        "I can answer logistics questions, explain analytics concepts, and guide you "
-        "step-by-step based on your selected response style."
-    )
-    st.write(
-        "Ask any ISOM 550 question. I choose the right tutoring action for your request, "
-        "then adapt the explanation to your selected response style."
+        "Ask any ISOM 550 question. I can answer logistics questions, explain analytics "
+        "concepts, and guide you step-by-step based on your selected response style."
     )
     option = "unified"
     
@@ -353,13 +378,29 @@ def main():
         st.caption(f"Conversation: {len(st.session_state.chat_history)} messages")
 
     # display previous conversation history
-    for message in st.session_state.chat_history:
+    for idx, message in enumerate(st.session_state.chat_history):
         if isinstance(message, HumanMessage):
             with st.chat_message("Human"):
                 _md(message.content)
         elif isinstance(message, AIMessage):
             with st.chat_message("AI", avatar="🦜"):
                 _md(message.content)
+                _render_retrieval_sources(
+                    st.session_state.message_sources.get(idx, []),
+                    key=f"sources_hist_{idx}",
+                )
+
+    # Starter prompts fill the empty main area before the first question.
+    starter_choice = None
+    if not _conversation_started(st.session_state.chat_history) and not st.session_state.pending_intent:
+        st.caption("Try asking")
+        starter_choice = st.pills(
+            "Example questions",
+            options=STARTER_PROMPTS,
+            selection_mode="single",
+            key="starter_prompt_pills",
+            label_visibility="collapsed",
+        )
 
     # Inline feedback controls for latest response.
     if st.session_state.last_interaction_id:
@@ -471,6 +512,7 @@ def main():
             file_type=["png", "jpg", "jpeg", "pdf", "txt", "csv"],
             submit_mode="stop",
         )
+        st.caption("Do not include personal information. This tutor can make mistakes.")
 
     typed_query, uploaded_files = _parse_chat_input(raw_input)
     user_query = ""
@@ -523,10 +565,14 @@ def main():
             if detail_text:
                 st.session_state.last_practice_topic = detail_text
 
-    # 4) Normal free-form chat
+    # 4) Normal free-form chat, or a starter prompt from the empty state
     else:
         user_query = typed_query
         display_user_text = typed_query
+        if not user_query and starter_choice:
+            user_query = starter_choice
+            display_user_text = starter_choice
+            st.session_state.pop("starter_prompt_pills", None)
         if uploaded_files and not user_query:
             user_query = "Please review the attached file(s) and help me with the next step."
             display_user_text = user_query
@@ -624,10 +670,10 @@ def main():
                 st.session_state.last_retrieval_debug = retrieval_debug
 
                 if "answer_logistics" in tools_used and retrieval_debug:
-                    source_block = format_source_block_from_debug(retrieval_debug)
-                    st.markdown("**Sources**")
-                    _md(source_block)
-                    ai_response_for_history = f"{ai_response}\n\n**Sources**\n{source_block}"
+                    _render_retrieval_sources(
+                        retrieval_debug,
+                        key="sources_live_current",
+                    )
 
                 if sidebar_settings["show_diagnostics"]:
                     _render_tool_calls(tool_calls)
@@ -670,9 +716,9 @@ def main():
         history_user_text = (display_user_text or user_query) + attachment_note
         st.session_state.chat_history.append(HumanMessage(history_user_text))
         st.session_state.chat_history.append(AIMessage(ai_response_for_history))
+        if "answer_logistics" in tools_used and retrieval_debug:
+            st.session_state.message_sources[len(st.session_state.chat_history) - 1] = retrieval_debug
 
-        # Save legacy and normalized events.
-        process_and_store_query(collection, query=user_query)
         unresolved = (
             turn_result.get("abstained", False)
             or "don't have enough information" in ai_response_for_history.lower()

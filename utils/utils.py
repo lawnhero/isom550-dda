@@ -29,15 +29,34 @@ def load_db(db_path=kb_db_path, embedding_model='text-embedding-3-small'):
     print("Database loaded")
     return db_loaded
 
-MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD")
+def _get_mongodb_uri() -> str:
+    """Resolve MongoDB URI from Streamlit secrets (deployed) or MONGODB_URI in .env (local)."""
+    try:
+        secret_uri = st.secrets.get("mongodb_uri")
+        if secret_uri:
+            return secret_uri
+    except Exception:
+        pass
 
-uri = f"mongodb+srv://streamlit_app:{MONGODB_PASSWORD}@virtual-ta.q344d.mongodb.net/?retryWrites=true&w=majority"
+    env_uri = os.getenv("MONGODB_URI")
+    if env_uri:
+        return env_uri
+
+    raise ValueError(
+        "MongoDB URI not configured. Set mongodb_uri in .streamlit/secrets.toml "
+        "or MONGODB_URI in .env."
+    )
+
 
 # MongoDB Atlas connection
 @st.cache_resource
 def query_db_connection():
     """Return a MongoDB connection to the user_queries_db database."""
-    client = MongoClient(uri, server_api=ServerApi('1'), tlsCAFile=certifi.where())
+    client = MongoClient(
+        _get_mongodb_uri(),
+        server_api=ServerApi("1"),
+        tlsCAFile=certifi.where(),
+    )
     print("Connected to MongoDB")
     return client['user_queries_db']
 

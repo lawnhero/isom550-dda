@@ -1,6 +1,9 @@
 import streamlit as st
 from datetime import datetime
 
+# Recent-message window is an internal tuning knob, not a student control.
+DEFAULT_MEMORY_WINDOW = 8
+
 def diagnostics_unlocked():
     """
     Agent diagnostics are an instructor tool, not a student-facing control.
@@ -21,9 +24,34 @@ def diagnostics_unlocked():
         return supplied == expected
     return supplied.lower() in {"1", "true", "yes", "on"}
 
+@st.dialog("How this works", width="large")
+def show_help_dialog():
+    """Onboarding and policy text, on demand instead of pinned to the sidebar."""
+    st.subheader("How questions get answered")
+    st.markdown(
+        "- Logistics questions (deadlines, grading, policy) are answered from the "
+        "syllabus and schedule\n"
+        "- Concept and assignment questions are answered from the class materials\n"
+        "- If routing fails, the tutor falls back to answering directly"
+    )
+    st.subheader("Getting better results")
+    st.markdown(
+        "- Include context: your dataset, your variables, and what you already tried\n"
+        "- Build on previous answers instead of starting over\n"
+        "- State your assumptions so the tutor can correct them early\n"
+        "- Ask for hints when you want guided practice rather than the answer"
+    )
+    st.subheader("Good to know")
+    st.markdown(
+        "- This tutor is a work in progress and is still being improved\n"
+        "- Use it for learning, not for cheating\n"
+        "- Never include personal information in your questions"
+    )
+
 def clear_chat_history():
     """Clear the chat history and reset conversation."""
     st.session_state.chat_history = []
+    st.session_state.message_sources = {}
     st.session_state.memory_summary = ""
     st.session_state.last_interaction_id = ""
     st.session_state.pending_intent = None
@@ -55,12 +83,6 @@ def sidebar():
     """Enhanced sidebar for MBA Data Analytics Virtual TA."""
     with st.sidebar:
         
-        # Header and branding
-        st.markdown("# Virtual TA Guide")
-        # st.markdown("**ISOM 550 - Data and Decision Analytics**")
-        # st.markdown("---")
-
-        st.markdown("## Learning Preferences")
         response_modes = ["Direct answer", "Hint-first", "Teach me step-by-step"]
         if "response_mode" not in st.session_state:
             st.session_state.response_mode = "Teach me step-by-step"
@@ -73,121 +95,57 @@ def sidebar():
         if response_mode is None:
             response_mode = "Teach me step-by-step"
             st.session_state.response_mode = response_mode
-        memory_window = st.slider(
-            "Recent message window",
-            min_value=4,
-            max_value=16,
-            value=st.session_state.get("memory_window", 8),
-            step=2,
-            help="Number of recent messages considered before using summary memory.",
-        )
-        # Instructor-only: hidden unless unlocked via ?debug= in the URL.
+
+        # Instructor-only controls: hidden unless unlocked via ?debug= in the URL.
         if diagnostics_unlocked():
+            memory_window = st.slider(
+                "Recent message window",
+                min_value=4,
+                max_value=16,
+                value=st.session_state.get("memory_window", DEFAULT_MEMORY_WINDOW),
+                step=2,
+                help="Number of recent messages considered before using summary memory.",
+            )
             show_diagnostics = st.toggle(
                 "Show agent diagnostics",
                 value=st.session_state.get("show_diagnostics", False),
                 help="Display tool calls and retrieval debug info for development.",
             )
         else:
+            memory_window = DEFAULT_MEMORY_WINDOW
             show_diagnostics = False
         st.session_state.memory_window = memory_window
         st.session_state.show_diagnostics = show_diagnostics
 
-        # Conversation management
-        st.markdown("## Conversation")
-        # Show conversation count
-        if 'chat_history' in st.session_state:
-            msg_count = len(st.session_state.chat_history)
-            st.markdown(f"**Messages:** {msg_count}")
-        
-        # Conversation management buttons
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Clear chat button
-            if st.button("🗑️ Clear Chat", width='stretch'):
+        with st.container(horizontal=True):
+            if st.button("Clear chat", icon=":material/delete:", width="stretch"):
                 clear_chat_history()
-                st.success("Chat cleared!")
-        
-        with col2:
-            # Save chat button
-            if 'chat_history' in st.session_state and st.session_state.chat_history:
-                chat_content = save_chat_history()
+
+            if st.session_state.get("chat_history"):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"chat_history_{timestamp}.txt"
-                
                 st.download_button(
-                    label="💾 Save Chat",
-                    data=chat_content,
-                    file_name=filename,
+                    "Save chat",
+                    data=save_chat_history(),
+                    file_name=f"chat_history_{timestamp}.txt",
                     mime="text/plain",
-                    width='stretch'
+                    icon=":material/download:",
+                    width="stretch",
                 )
             else:
-                st.button("💾 Save Chat", disabled=True, width='stretch', 
-                         help="No conversation to save")
-        
-        st.markdown("---")
-        
-        # Pro tips
-        # st.markdown("## 🎯 Pro Tips")
+                st.button(
+                    "Save chat",
+                    icon=":material/download:",
+                    disabled=True,
+                    width="stretch",
+                    help="No conversation to save",
+                )
 
-        # App behavior explanation
-        st.markdown("## How It Works")
-        
-        with st.expander("Unified Tutor", expanded=False):
-            st.markdown("""
-            **Auto-routing:**
-            - Course logistics questions route to course materials
-            - Learning and assignment questions route to content materials
-            - If routing fails, the app falls back to direct tutoring safely
-            
-            **💡 Example Queries:**
-            - "When is the midterm exam?"
-            - "Help with Assignment 3"
-            - "What's the grading policy?"
-            - "Guide me through regression analysis"
-            - "What materials do I need for the final project?"
-            - "How do I interpret this statistical output?"
-            """)
-        
-        # st.markdown("---")
-        
-        with st.expander("Get Better Results", expanded=False):
-            st.markdown("""
-            **Be Specific:**
-            - Include context and variables
-            - Specify your dataset/scenario
-            - Ask follow-up questions
-            
-            **Conversation Flow:**
-            - Build on previous responses
-            - Ask "What's next?" for step-by-step help
-            - Reference earlier discussion
-            
-            **Learning Tip:**
-            - Ask focused follow-up questions to deepen understanding
-            - Mention your assumptions so the tutor can correct them early
-            """)
-        
-        
-        
-        # Footer
-        st.markdown("## Important Notes")
-        st.markdown("""
-        **Work in Progress:** Continuously improving
-        
-        **Privacy:** Never include personal information
-        
-        **Academic Tool:** Use for learning, not cheating
-        
-        **Learning Focus:** Ask for hints when you want guided practice
-        """)
-        
-        st.markdown("---")
-        st.markdown("**Created by:** Dr. Wenjun Gu")  
-        st.markdown("📧 wenjun.gu@emory.edu")
-        st.markdown("🏫 Goizueta Business School")
+        if st.button("How this works", icon=":material/help:", width="stretch"):
+            show_help_dialog()
+
+        st.space("medium")
+        st.caption("Dr. Wenjun Gu · Goizueta Business School")
+        st.caption("wenjun.gu@emory.edu")
 
     return {
         "response_mode": response_mode,
@@ -205,6 +163,6 @@ def update_session_stats():
 def get_sidebar_settings():
     return {
         "response_mode": st.session_state.get("response_mode", "Teach me step-by-step"),
-        "memory_window": st.session_state.get("memory_window", 8),
+        "memory_window": st.session_state.get("memory_window", DEFAULT_MEMORY_WINDOW),
         "show_diagnostics": st.session_state.get("show_diagnostics", False),
     }

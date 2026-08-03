@@ -33,7 +33,11 @@ Student-centered RAG chatbot for MBA Data and Decision Analytics.
 - Main tutoring / step guidance: `grok-4.5` (fallback: `claude-sonnet-5`)
 - Course RAG + memory/recap: `claude-haiku-4-5` (fallback: `gpt-4o-mini`)
 - Agent tool dispatch: `gpt-4o-mini`
-- Requires env vars: `XAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+
+## Secrets and environment
+Local dev: create `.env` with `MONGODB_URI`, `XAI_API_KEY`, `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`.
+
+Deployed (Streamlit Cloud): set `mongodb_uri` in app secrets (see `.streamlit/secrets.toml.example`). API keys can live in `.env` locally or in Streamlit secrets on deploy.
 
 ## Build/rebuild the knowledge index
 Use this script with your raw course material folder:
