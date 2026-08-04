@@ -66,22 +66,53 @@ ALLOWED_ENDPOINTS = (
 )
 
 
+_BLOCK_TAGS = ("p", "br", "div", "li", "tr", "h1", "h2", "h3", "h4", "ul", "ol")
+
+
 class _Stripper(HTMLParser):
-    """Minimal HTML -> text. Canvas announcement bodies are HTML."""
+    """Minimal HTML -> text. Canvas announcement and assignment bodies are HTML.
+
+    Two behaviours that matter:
+      - <script>/<style> content is dropped. Canvas injects a global CSS and JS
+        tag into every assignment description; without this, raw CSS rules end
+        up in the indexed text.
+      - <a href> targets are kept, but only the path. Canvas file links carry a
+        `verifier=` query token that grants UNAUTHENTICATED access to the file.
+        This repo is public, so publishing one would publish the course file
+        itself. The bare path still requires a Canvas login, which is correct.
+    """
 
     def __init__(self):
         super().__init__()
         self.parts = []
-
-    def handle_data(self, d):
-        self.parts.append(d)
+        self._skip = 0
+        self._href = ""
 
     def handle_starttag(self, tag, attrs):
-        if tag in ("p", "br", "div", "li", "tr", "h1", "h2", "h3", "h4"):
+        if tag in ("script", "style"):
+            self._skip += 1
+            return
+        if tag == "a":
+            href = dict(attrs).get("href") or ""
+            self._href = href.split("?", 1)[0]
+        if tag in _BLOCK_TAGS:
             self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style"):
+            self._skip = max(0, self._skip - 1)
+        elif tag == "a" and self._href:
+            self.parts.append(f" ({self._href})")
+            self._href = ""
+
+    def handle_data(self, d):
+        if self._skip:
+            return
+        self.parts.append(d)
 
     def text(self):
         out = "".join(self.parts)
+        out = out.replace("\xa0", " ")
         out = re.sub(r"[ \t]+", " ", out)
         out = re.sub(r"\n\s*\n\s*\n+", "\n\n", out)
         return out.strip()
@@ -157,6 +188,9 @@ def build_snapshot(session, course_id, tz):
                 "due_local": due_local,
                 "points": a.get("points_possible"),
                 "url": a.get("html_url", ""),
+                # Full written instructions. Not used in the Tier A prompt block
+                # (far too long); this is the source Tier C indexes.
+                "instructions": html_to_text(a.get("description")),
             }
         )
     # undated last, then chronological, then by name -- stable diffs
@@ -265,6 +299,13 @@ def validate(snap):
     for k in LEAK_KEYS:
         if f'"{k}"' in blob:
             errs.append(f"possible student-data key in output: {k!r}")
+
+    # Canvas file links carry a `verifier=` token granting unauthenticated access
+    # to the file. This repo is public; one of these in a commit publishes the
+    # course file. _Stripper drops query strings, so this should never fire --
+    # it is here to catch a regression in that stripping.
+    if "verifier=" in blob:
+        errs.append("a Canvas file verifier token reached the output -- would leak file access")
 
     if not snap.get("assignments"):
         print("WARNING: no published assignments found", file=sys.stderr)

@@ -294,7 +294,6 @@ Response format:
 def build_chain_payload(
     query: str,
     chat_history=None,
-    memory_summary: str = "",
     response_mode: str = "Teach me step-by-step",
     context: str = "",
 ) -> Dict[str, str]:
@@ -304,7 +303,6 @@ def build_chain_payload(
     return {
         "query": query,
         "chat_history": history_text,
-        "memory_summary": memory_summary or "No memory summary yet.",
         "response_mode": profile["response_mode"],
         "learning_objective": profile["learning_objective"],
         "learner_level": profile["learner_level"],
@@ -350,9 +348,6 @@ Response contract (strict):
 5) Keep total response <=180 words, with short bullets when useful.
 6) End with one brief follow-up question that moves learning forward.
 
-Conversation memory summary:
-{memory_summary}
-
 Recent chat:
 {chat_history}
 
@@ -365,7 +360,6 @@ Response:"""
         {
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
-            "memory_summary": itemgetter("memory_summary"),
             "response_mode": itemgetter("response_mode"),
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
@@ -376,7 +370,7 @@ Response:"""
 
 
 def rag_chain(llm: BaseLanguageModel):
-    template = """You are Dayton, a Virtual TA for BUS 350 Data and Decision Analytics.
+    template = """You are Dayton, a Virtual TA for Data and Decision Analytics.
 Answer the logistics question using ONLY the provided course materials.
 
 Learning objective: {learning_objective}
@@ -405,9 +399,6 @@ Rules:
      - <what to confirm before next step>
 6) Do not mention internal settings or hidden context fields.
 
-Conversation memory summary:
-{memory_summary}
-
 Recent chat:
 {chat_history}
 
@@ -424,9 +415,172 @@ Answer:"""
             "context": itemgetter("context"),
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
-            "memory_summary": itemgetter("memory_summary"),
             "response_mode": itemgetter("response_mode"),
             "learning_objective": itemgetter("learning_objective"),
+        }
+    )
+    return setup | prompt | llm | output_parser
+
+
+def facts_chain(llm: BaseLanguageModel):
+    """Answer course-fact questions from the Tier A context block.
+
+    No retrieval: the context block IS the source. Deliberately ignores
+    response_mode -- a student asking when the final is due wants the date, not
+    a hint or a guided exercise, whatever tutoring style they picked.
+    """
+    template = """You are Dayton, the Virtual TA for ISOM 550 Data and Decision Analytics.
+
+Answer using ONLY the COURSE CONTEXT below. It is the authoritative record for
+dates, people, grading, materials, and what has been covered in class so far.
+
+Rules:
+1) Use only the COURSE CONTEXT. If the answer is not there, say you do not have
+   that information and point the student to Canvas, the syllabus, or the
+   instructor. Never guess a deadline, policy, office hour, or grade weight.
+2) Dates and times in the context are already in course-local time. Repeat them
+   exactly as written. Do not convert, recompute, or infer any date, and do not
+   work out what "this week" means beyond what the context states.
+3) If the context begins with a "!! SCHEDULE RELIABILITY" block, follow the
+   instruction on its "->" line before answering.
+4) Link to Canvas whenever the context provides a URL, so the student can confirm.
+5) Under 120 words, plain language.
+6) Never mention internal settings, hidden fields, or that you were given a context block.
+
+Always use this shape, regardless of the student's tutoring style preference:
+
+**Answer**
+<the fact, stated plainly>
+**Confirm**
+- <where to verify, with the Canvas link when the context has one>
+
+COURSE CONTEXT:
+{course_context}
+
+Recent chat:
+{chat_history}
+
+Question:
+{query}
+
+Answer:"""
+    prompt = ChatPromptTemplate.from_template(template)
+    setup = RunnableParallel(
+        {
+            "course_context": itemgetter("course_context"),
+            "chat_history": itemgetter("chat_history"),
+            "query": itemgetter("query"),
+        }
+    )
+    return setup | prompt | llm | output_parser
+
+
+def software_chain(llm: BaseLanguageModel):
+    """Answer JMP / Excel how-to questions from the model's own knowledge.
+
+    No retrieval by design: the model knows these tools better than any course
+    index could teach it, and feeding it 4 loosely-matching stats Q&A rows as
+    "context" actively misleads it -- which is what happened to ~92 logged JMP
+    questions before this route existed.
+
+    Ignores response_mode. This course teaches analytics, not JMP; withholding
+    a menu path behind a hint wastes the student's time without teaching
+    anything the course is actually assessing.
+    """
+    template = """You are Dayton, the Virtual TA for ISOM 550 Data and Decision Analytics.
+
+The student needs help operating software. Answer from your own knowledge of the
+tool, grounded by the course details below.
+
+Rules:
+1) Give concrete, numbered steps naming the exact menus, dialogs, and buttons.
+2) State which version you are assuming, and add one short line noting menus may
+   differ in other versions.
+3) NEVER invent a menu path. If you are not confident about the exact location of
+   a command in this version, say which part you are unsure of and point the
+   student to the course walkthrough or the TA. A confident wrong click path
+   costs more time than an honest "I'm not certain where this sits in 18".
+4) If COURSE CONVENTIONS below contradict the tool's default behaviour, follow
+   the course convention and say so explicitly -- this is where students most
+   often misread their own output.
+5) If a COURSE WALKTHROUGH matches the task, link it; the instructor's own
+   version is better than a generic one.
+6) If the student asks about software this course does not use, say which tool
+   the course uses for that task instead of answering for the other tool.
+7) Stay pointed at the analytics goal. Explain what the output means, briefly,
+   not just where to click.
+8) Never mention internal settings or hidden context fields.
+
+{software_context}
+
+Recent chat:
+{chat_history}
+
+Question:
+{query}
+
+Answer:"""
+    prompt = ChatPromptTemplate.from_template(template)
+    setup = RunnableParallel(
+        {
+            "software_context": itemgetter("software_context"),
+            "chat_history": itemgetter("chat_history"),
+            "query": itemgetter("query"),
+        }
+    )
+    return setup | prompt | llm | output_parser
+
+
+def doc_chain(llm: BaseLanguageModel):
+    """Answer from Tier C course documents: class recaps and assignment briefs.
+
+    Unlike facts_chain, this one honours response_mode -- but only for the
+    explanation it adds. What the document actually says is always reported
+    plainly, because a student asking what an assignment requires needs the
+    requirements, not a hint.
+    """
+    template = """You are Dayton, the Virtual TA for ISOM 550 Data and Decision Analytics.
+
+Answer using the COURSE DOCUMENTS below. They are class recap announcements and
+assignment instructions written by the instructor.
+
+Rules:
+1) Report what the documents say. Never invent a task, deliverable, point value,
+   file name, or claim about what a class covered.
+2) If the documents do not cover the question, say so plainly and suggest where
+   to look. Do not fill the gap from general knowledge.
+3) Name the document you are drawing on ("Class 9 (7/27) Sensitivity Analysis")
+   and include its link when one is provided.
+4) State the document's content plainly first. Then adapt any FURTHER
+   explanation to the response mode:
+   - Direct answer: add a one-line summary of what matters most.
+   - Hint-first: after stating the requirements, ask one question that helps the
+     student decide their next step.
+   - Teach me step-by-step: after stating the requirements, break them into an
+     ordered plan of what to do first, second, third.
+5) Under 200 words unless the student asked for a full task list, in which case
+   list every task.
+6) Never mention internal settings, hidden fields, or that you were given documents.
+
+Preferred response mode: {response_mode}
+
+COURSE DOCUMENTS:
+{context}
+
+Recent chat:
+{chat_history}
+
+Question:
+{query}
+
+Answer:"""
+    prompt = ChatPromptTemplate.from_template(template)
+    setup = RunnableParallel(
+        {
+            "context": itemgetter("context"),
+            "query": itemgetter("query"),
+            "chat_history": itemgetter("chat_history"),
+            "response_mode": itemgetter("response_mode"),
         }
     )
     return setup | prompt | llm | output_parser
@@ -471,9 +625,6 @@ Guidance policy (strict):
 7) Do not mention internal settings (response_mode, learner_level, objective tags).
 8) End with one short question that confirms readiness for the next step.
 
-Conversation memory summary:
-{memory_summary}
-
 Recent chat:
 {chat_history}
 
@@ -490,7 +641,6 @@ Response:"""
             "context": itemgetter("context"),
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
-            "memory_summary": itemgetter("memory_summary"),
             "response_mode": itemgetter("response_mode"),
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
@@ -523,9 +673,6 @@ Use this structure:
 **Hint**
 - <one actionable hint>
 
-Conversation memory summary:
-{memory_summary}
-
 Recent chat:
 {chat_history}
 
@@ -537,7 +684,6 @@ Response:"""
             "difficulty": itemgetter("difficulty"),
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
-            "memory_summary": itemgetter("memory_summary"),
             "chat_history": itemgetter("chat_history"),
         }
     )
@@ -564,9 +710,6 @@ Rules:
 3) Keep total response <=180 words.
 4) End with one short follow-up question.
 
-Conversation memory summary:
-{memory_summary}
-
 Recent chat:
 {chat_history}
 
@@ -581,7 +724,6 @@ Response:"""
             "attempt_text": itemgetter("attempt_text"),
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
-            "memory_summary": itemgetter("memory_summary"),
             "chat_history": itemgetter("chat_history"),
         }
     )
@@ -597,9 +739,6 @@ Summarize the current session for the student in this exact structure:
 
 Keep it under 120 words.
 
-Conversation memory summary:
-{memory_summary}
-
 Recent chat:
 {chat_history}
 
@@ -608,31 +747,21 @@ Recap:"""
     return prompt | llm | output_parser
 
 
-def summarize_memory_chain(llm: BaseLanguageModel):
-    template = """Create a compact learning memory summary for continuity.
-Previous summary:
-{previous_summary}
-
-Recent turns:
-{recent_turns}
-
-Return 4 bullets max, focused on:
-- learner goal
-- progress made
-- misconceptions/open issues
-- best next step
-"""
-    prompt = ChatPromptTemplate.from_template(template)
-    return prompt | llm | output_parser
-
-
 def get_all_chains(main_llm, light_llm):
     return {
         "class_chain": class_chain(main_llm),
         "rag_chain": rag_chain(light_llm),
+        # Reading a fact out of a context block and linking Canvas is a light
+        # task; the tutoring model is not needed for it.
+        "facts_chain": facts_chain(light_llm),
+        # Reporting what an assignment brief or class recap says, then adapting
+        # the follow-on explanation, is real tutoring work -- main model.
+        "doc_chain": doc_chain(main_llm),
+        # Procedural steps grounded by a short context block -- light task, and
+        # this is high-traffic (92 JMP questions in the logged history).
+        "software_chain": software_chain(light_llm),
         "step_chain": step_chain(main_llm),
         "practice_chain": practice_chain(main_llm),
         "check_chain": check_chain(main_llm),
         "recap_chain": recap_chain(light_llm),
-        "summary_chain": summarize_memory_chain(light_llm),
     }

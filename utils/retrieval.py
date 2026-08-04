@@ -72,6 +72,43 @@ def hybrid_retrieve(
     return [doc for _, doc in ranked[:top_k]]
 
 
+def build_document_filter(doc_type: str = "", since_ymd: int = 0):
+    """Chroma `where` filter for the Tier C index, or None for no filter.
+
+    "What did we cover in the last two weeks" is a RANGE query, not a similarity
+    query -- no embedding reliably surfaces recency. Tier C stores a sortable
+    `ymd` integer so the date part is an exact filter and only the topic part
+    goes through the vector search.
+    """
+    clauses = []
+    if doc_type:
+        clauses.append({"doc_type": {"$eq": doc_type}})
+    if since_ymd:
+        clauses.append({"ymd": {"$gte": int(since_ymd)}})
+    if not clauses:
+        return None
+    return clauses[0] if len(clauses) == 1 else {"$and": clauses}
+
+
+def search_documents(
+    vector_db,
+    query: str,
+    doc_type: str = "",
+    since_ymd: int = 0,
+    top_k: int = 4,
+) -> List:
+    """Similarity search over Tier C, narrowed by document type and date."""
+    where = build_document_filter(doc_type, since_ymd)
+    try:
+        if where:
+            return vector_db.similarity_search(query, k=top_k, filter=where)
+        return vector_db.similarity_search(query, k=top_k)
+    except Exception:
+        # An empty or missing collection should degrade to "no sources", not
+        # take the turn down. The index does not exist until build_tier_c runs.
+        return []
+
+
 def build_source_block(docs: List) -> str:
     if not docs:
         return "_No sources available._"

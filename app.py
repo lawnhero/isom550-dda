@@ -6,6 +6,7 @@ import uuid
 
 import utils.chains_lcel as chains
 from utils.agent_graph import build_ta_agent, run_ta_turn
+from utils.course_context import get_course_context, get_software_context
 from utils.sidebar import sidebar, update_session_stats
 import utils.llm_models as llms
 from utils.ta_tools import TurnArtifacts
@@ -30,8 +31,12 @@ set_verbose(False)
 # 1. Load the Vectorised database
 course_path = 'data/course'
 contents_path = 'data/contents'
+documents_path = 'data/tier_c'
 course_db = load_db(db_path=course_path)
 contents_db = load_db(db_path=contents_path)
+# Tier C: class recaps + assignment briefs, built by scripts/build_tier_c.py.
+# Missing until that runs; searches then return nothing and the tool abstains.
+documents_db = load_db(db_path=documents_path)
 
 # 2. MongoDB Atlas connection
 mongo_db = query_db_connection()
@@ -342,8 +347,6 @@ def _render_tool_calls(tool_calls):
 def main():
     if "session_id" not in st.session_state:
         st.session_state.session_id = str(uuid.uuid4())
-    if "memory_summary" not in st.session_state:
-        st.session_state.memory_summary = ""
     if "last_interaction_id" not in st.session_state:
         st.session_state.last_interaction_id = ""
     if "recap_count" not in st.session_state:
@@ -625,11 +628,13 @@ def main():
                     agent_llm=agent_llm,
                     course_db=course_db,
                     contents_db=contents_db,
+                    documents_db=documents_db,
                     chains_dict=all_chains,
                     chat_history=st.session_state.chat_history,
-                    memory_summary=st.session_state.memory_summary,
                     response_mode=sidebar_settings["response_mode"],
                     artifacts=artifacts,
+                    course_context=get_course_context(),
+                    software_context=get_software_context(),
                 )
                 turn_result = run_ta_turn(
                     agent=agent,
@@ -655,7 +660,6 @@ def main():
                             chains.build_chain_payload(
                                 query=query_for_model,
                                 chat_history=st.session_state.chat_history,
-                                memory_summary=st.session_state.memory_summary,
                                 response_mode=effective_response_mode,
                             )
                         )
@@ -699,7 +703,6 @@ def main():
                             st.session_state.chat_history,
                             max_messages=sidebar_settings["memory_window"],
                         ),
-                        "memory_summary": st.session_state.memory_summary,
                         "response_mode": effective_response_mode,
                         "learning_objective": learning_profile["learning_objective"],
                         "learner_level": learning_profile["learner_level"],
@@ -745,30 +748,16 @@ def main():
         interaction_id = store_event(collection, event_payload)
         st.session_state.last_interaction_id = str(interaction_id)
 
-        # Update memory summary with recent turns.
+        # Recap card every 4 user turns.
         recent_turns = chains.format_chat_history(
             st.session_state.chat_history,
             max_messages=sidebar_settings["memory_window"],
         )
-        try:
-            st.session_state.memory_summary = all_chains["summary_chain"].invoke(
-                {
-                    "previous_summary": st.session_state.memory_summary or "No summary yet.",
-                    "recent_turns": recent_turns,
-                }
-            )
-        except Exception:
-            pass
-
-        # Recap card every 4 user turns.
         st.session_state.recap_count += 1
         if st.session_state.recap_count % 4 == 0:
             try:
                 recap_text = all_chains["recap_chain"].invoke(
-                    {
-                        "memory_summary": st.session_state.memory_summary,
-                        "chat_history": recent_turns,
-                    }
+                    {"chat_history": recent_turns}
                 )
                 st.info(f"Learning recap:\n\n{recap_text}")
             except Exception:

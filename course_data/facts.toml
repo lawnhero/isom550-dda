@@ -96,6 +96,22 @@ excel     = "Microsoft Excel 2016 or later"
 jmp       = "JMP 18 Student recommended; other versions may work"
 addins    = "TreePlan Excel add-in, for decision tree modeling"
 
+# The software route answers JMP/Excel questions from the model's own knowledge
+# rather than from retrieval -- it knows these tools well. What it CANNOT know is
+# where this course diverges from tool defaults, which is what this field is for.
+# These are the highest-value lines in this file: a student reading their own
+# output wrong because Excel and JMP disagree is a real, recurring failure.
+#
+# Your Class 5 (7/13) announcement already states one:
+#   "Excel and JMP use different baseline group ... Excel uses a particular
+#    category such as Cape Cod as baseline, while JMP uses the average of all
+#    categories as the baseline."
+#
+# Add that and any others as short bullet lines. Left empty rather than
+# transcribed for you, since deciding which conventions matter is a teaching
+# call, not a formatting one.
+conventions = ""
+
 
 [objectives]
 body = """

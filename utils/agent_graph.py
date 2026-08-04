@@ -15,18 +15,31 @@ from utils.ta_tools import (
 AGENT_SYSTEM_PROMPT = """You are Dayton, the Virtual TA for ISOM 550 Data and Decision Analytics.
 
 Choose the best tool for each student request:
-- answer_logistics: deadlines, grading, schedule, policy, syllabus logistics
-- answer_concept: analytics concepts, assignment help, coding, interpretation
+- answer_course_facts: due dates, deadlines, schedule, office hours, instructor or TA
+  contact, grading weights, required materials, what has been covered in class so far
+- answer_course_documents: what an assignment requires, or what a specific class
+  session covered. Set doc_type='assignment' or 'announcement' to narrow it, and
+  days_back to restrict by recency (this week = 7, last two weeks = 14)
+- answer_software: how to DO something in JMP or Excel -- menus, dialogs, reading
+  output, installing the software or the TreePlan add-in
+- answer_concept: what a statistic MEANS, interpretation, analytics concepts
 - generate_practice: when the student wants a practice question
 - check_attempt: when the student wants feedback on their attempt
 
 Rules:
-1) Logistics questions must use answer_logistics.
-2) Prefer one primary tool per turn unless a short follow-up tool call clearly helps.
-3) After a tool returns, reply with a very short acknowledgement only (one short sentence).
+1) Any question about a date, a person, or grading must use answer_course_facts.
+2) "What did we cover" questions: use answer_course_facts for the list of class
+   topics, and answer_course_documents with doc_type='announcement' when the
+   student wants detail about what was actually taught in a session.
+3) "What am I supposed to do for <assignment>" is answer_course_documents with
+   doc_type='assignment', not answer_concept.
+4) "How do I ... in JMP/Excel" is answer_software. "What does this coefficient
+   mean" is answer_concept. A question can need both -- if so, call both.
+5) Prefer one primary tool per turn unless a short follow-up tool call clearly helps.
+6) After a tool returns, reply with a very short acknowledgement only (one short sentence).
    The student-facing tutoring answer is streamed separately from the tool payload.
-4) Do not invent course policies, deadlines, or grading rules.
-5) Keep responses concise and student-friendly.
+7) Do not invent course policies, deadlines, or grading rules.
+8) Keep responses concise and student-friendly.
 """
 
 
@@ -47,20 +60,24 @@ def build_ta_agent(
     agent_llm: BaseLanguageModel,
     course_db,
     contents_db,
+    documents_db=None,
     chains_dict: Dict[str, Any],
     chat_history,
-    memory_summary: str,
     response_mode: str,
     artifacts: TurnArtifacts,
+    course_context: str = "",
+    software_context: str = "",
 ):
     tools = build_ta_tools(
         course_db=course_db,
         contents_db=contents_db,
+        documents_db=documents_db,
         chains_dict=chains_dict,
         chat_history=chat_history,
-        memory_summary=memory_summary,
         response_mode=response_mode,
         artifacts=artifacts,
+        course_context=course_context,
+        software_context=software_context,
     )
     return create_react_agent(agent_llm, tools=tools, prompt=AGENT_SYSTEM_PROMPT)
 

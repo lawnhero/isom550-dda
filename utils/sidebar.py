@@ -52,7 +52,6 @@ def clear_chat_history():
     """Clear the chat history and reset conversation."""
     st.session_state.chat_history = []
     st.session_state.message_sources = {}
-    st.session_state.memory_summary = ""
     st.session_state.last_interaction_id = ""
     st.session_state.pending_intent = None
     st.rerun()

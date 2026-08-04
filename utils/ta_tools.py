@@ -1,11 +1,17 @@
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import StructuredTool
 
 import utils.chains_lcel as chains
-from utils.retrieval import build_source_block, hybrid_retrieve, retrieval_debug_rows
+from utils.retrieval import (
+    build_source_block,
+    hybrid_retrieve,
+    retrieval_debug_rows,
+    search_documents,
+)
 
 
 @dataclass
@@ -81,7 +87,6 @@ def _prepare_rag_tool(
     vector_db,
     chain_key: str,
     chat_history,
-    memory_summary: str,
     response_mode: str,
     tool_name: str,
     artifacts: TurnArtifacts,
@@ -110,7 +115,6 @@ def _prepare_rag_tool(
     payload = chains.build_chain_payload(
         query=query,
         chat_history=chat_history,
-        memory_summary=memory_summary,
         response_mode=response_mode,
         context=chains._format_docs(docs),
     )
@@ -136,27 +140,150 @@ def build_ta_tools(
     *,
     course_db,
     contents_db,
+    documents_db=None,
     chains_dict: Dict[str, Any],
     chat_history,
-    memory_summary: str,
     response_mode: str,
     artifacts: TurnArtifacts,
+    course_context: str = "",
+    software_context: str = "",
 ):
     """Build agent tools that prepare retrieval/payloads for streamed LCEL answers."""
 
-    def answer_logistics(query: str) -> str:
-        """Answer course logistics questions using syllabus, grading, and schedule materials."""
-        result = _prepare_rag_tool(
-            query=query,
-            vector_db=course_db,
-            chain_key="rag_chain",
-            chat_history=chat_history,
-            memory_summary=memory_summary,
-            response_mode="Direct answer",
-            tool_name="answer_logistics",
-            artifacts=artifacts,
+    def answer_course_facts(query: str) -> str:
+        """Answer questions about dates, people, grading, and what class has covered."""
+        artifacts.tools_used.append("answer_course_facts")
+
+        if not (course_context or "").strip():
+            # No snapshot loaded. Say so rather than let another route invent a date.
+            answer = (
+                "I don't have the course schedule loaded right now, so I can't confirm "
+                "dates or deadlines. Please check Canvas."
+            )
+            artifacts.static_answer = answer
+            artifacts.stream_spec = None
+            artifacts.abstained = True
+            return _serialize_tool_result(
+                ToolExecutionResult(
+                    answer=answer,
+                    abstained=True,
+                    tool_name="answer_course_facts",
+                    stream_ready=False,
+                )
+            )
+
+        # No retrieval: the Tier A block already is the context.
+        payload = {
+            "course_context": course_context,
+            "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+            "query": query,
+        }
+        artifacts.stream_spec = StreamSpec(chain_key="facts_chain", payload=payload)
+        artifacts.static_answer = ""
+        artifacts.abstained = False
+        return _serialize_tool_result(
+            ToolExecutionResult(
+                answer="Prepared course-facts answer for streaming.",
+                tool_name="answer_course_facts",
+                stream_ready=True,
+            )
         )
-        return _serialize_tool_result(result)
+
+    def answer_software(query: str) -> str:
+        """Help operate JMP or Excel. Answers from model knowledge, no retrieval."""
+        artifacts.tools_used.append("answer_software")
+
+        # Deliberately no vector search. Retrieval here was actively harmful:
+        # a JMP question used to land in answer_concept and get four unrelated
+        # stats Q&A rows injected as authoritative "course context".
+        artifacts.retrieval_debug = []
+        artifacts.stream_spec = StreamSpec(
+            chain_key="software_chain",
+            payload={
+                "software_context": software_context or "",
+                "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+                "query": query,
+            },
+        )
+        artifacts.static_answer = ""
+        artifacts.abstained = False
+        return _serialize_tool_result(
+            ToolExecutionResult(
+                answer="Prepared software help for streaming.",
+                tool_name="answer_software",
+                stream_ready=True,
+            )
+        )
+
+    def answer_course_documents(query: str, doc_type: str = "", days_back: int = 0) -> str:
+        """Look up assignment instructions or what a class covered.
+
+        doc_type: "assignment", "announcement", or "" for both.
+        days_back: restrict to the last N days ("this week" -> 7). 0 = no limit.
+        """
+        artifacts.tools_used.append("answer_course_documents")
+
+        doc_type = (doc_type or "").strip().lower()
+        if doc_type not in {"assignment", "announcement", ""}:
+            doc_type = ""
+
+        # Date arithmetic is done here, not by the model. The agent only says
+        # how far back to look; turning that into a cutoff is Python's job.
+        since_ymd = 0
+        try:
+            days_back = int(days_back or 0)
+        except (TypeError, ValueError):
+            days_back = 0
+        if days_back > 0:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+            since_ymd = int(cutoff.strftime("%Y%m%d"))
+
+        docs = search_documents(
+            documents_db, query, doc_type=doc_type, since_ymd=since_ymd, top_k=4
+        )
+        debug_rows = retrieval_debug_rows(docs)
+        artifacts.retrieval_debug = debug_rows
+
+        if _is_weak_retrieval(docs):
+            answer = (
+                "I couldn't find that in the class recaps or assignment instructions. "
+                "Check the Canvas page for the assignment, or ask your instructor."
+            )
+            artifacts.abstained = True
+            artifacts.static_answer = answer
+            artifacts.stream_spec = None
+            return _serialize_tool_result(
+                ToolExecutionResult(
+                    answer=answer,
+                    retrieval_debug=debug_rows,
+                    abstained=True,
+                    tool_name="answer_course_documents",
+                    stream_ready=False,
+                )
+            )
+
+        sources = _extract_source_labels(docs)
+        artifacts.sources = sources
+        artifacts.stream_spec = StreamSpec(
+            chain_key="doc_chain",
+            payload={
+                "context": chains._format_docs(docs),
+                "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+                "response_mode": response_mode,
+                "query": query,
+            },
+        )
+        artifacts.static_answer = ""
+        artifacts.abstained = False
+        return _serialize_tool_result(
+            ToolExecutionResult(
+                answer="Prepared course-document answer for streaming.",
+                sources=sources,
+                retrieval_debug=debug_rows,
+                tool_name="answer_course_documents",
+                stream_ready=True,
+            )
+        )
 
     def answer_concept(query: str) -> str:
         """Explain analytics concepts, assignment help, coding, or interpretation using class materials."""
@@ -165,7 +292,6 @@ def build_ta_tools(
             vector_db=contents_db,
             chain_key="step_chain",
             chat_history=chat_history,
-            memory_summary=memory_summary,
             response_mode=response_mode,
             tool_name="answer_concept",
             artifacts=artifacts,
@@ -184,7 +310,6 @@ def build_ta_tools(
             "difficulty": difficulty,
             "learning_objective": chains.infer_learning_objective(topic),
             "learner_level": chains.infer_learner_level(chat_history),
-            "memory_summary": memory_summary or "No memory summary yet.",
             "chat_history": chains.format_chat_history(chat_history, max_messages=8),
         }
         artifacts.tools_used.append("generate_practice")
@@ -222,7 +347,6 @@ def build_ta_tools(
             "attempt_text": attempt_text,
             "learning_objective": chains.infer_learning_objective(topic),
             "learner_level": chains.infer_learner_level(chat_history),
-            "memory_summary": memory_summary or "No memory summary yet.",
             "chat_history": chains.format_chat_history(chat_history, max_messages=8),
         }
         artifacts.practice_topic = topic
@@ -240,10 +364,35 @@ def build_ta_tools(
 
     return [
         StructuredTool.from_function(
-            func=answer_logistics,
-            name="answer_logistics",
+            func=answer_course_facts,
+            name="answer_course_facts",
             description=(
-                "Answer deadlines, grading, schedule, policy, and syllabus logistics using course materials."
+                "Answer anything about due dates, deadlines, the class schedule, office "
+                "hours, instructor or TA contact, grading weights, required materials, "
+                "and which topics have been covered in class so far. Use this whenever "
+                "the question is about a course fact rather than an idea."
+            ),
+        ),
+        StructuredTool.from_function(
+            func=answer_course_documents,
+            name="answer_course_documents",
+            description=(
+                "Look up what an assignment actually requires, or what a specific class "
+                "session covered. Set doc_type='assignment' for assignment briefs, "
+                "'announcement' for class recaps, or leave blank for both. Set "
+                "days_back to restrict by recency (this week = 7, last two weeks = 14). "
+                "Do NOT use this for due dates or grading weights -- use answer_course_facts."
+            ),
+        ),
+        StructuredTool.from_function(
+            func=answer_software,
+            name="answer_software",
+            description=(
+                "Help the student operate JMP or Excel: which menu, which dialog, "
+                "which output to read. Use this for any 'how do I ... in JMP/Excel' "
+                "question, including installing the software or a TreePlan add-in. "
+                "Use answer_concept instead when the question is about what a "
+                "statistic MEANS rather than how to produce it."
             ),
         ),
         StructuredTool.from_function(

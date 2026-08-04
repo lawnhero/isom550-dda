@@ -342,25 +342,43 @@ def render(schedule, facts, now=None, stale_after_days=None, verbose=False):
     return "\n".join(lines).strip()
 
 
-def render_software_pages(schedule, limit=None):
-    """Link menu of course JMP/Excel walkthroughs, for the software route only.
+def render_software_context(schedule, facts, limit=None):
+    """Grounding for the software route: versions, conventions, walkthrough links.
 
-    The software route answers from the model's own knowledge rather than
-    retrieval, but it should point students at the course's own materials --
-    a generic JMP answer will not match how this course does it.
+    The software route does NOT retrieve -- the model already knows JMP and
+    Excel far better than any 21-row index could teach it. What it cannot know
+    is which version this course assumes, where this course diverges from the
+    tool defaults, and that the instructor already wrote a walkthrough for the
+    exact task being asked about. That is all this block supplies.
     """
-    if not schedule:
-        return ""
-    pages = [p for p in schedule.get("pages", [])
-             if SOFTWARE_PAGE_RE.search(p.get("title", ""))]
-    if not pages:
-        return ""
+    lines = []
+
+    software = (facts or {}).get("software") or {}
+    if software:
+        lines.append("SOFTWARE THIS COURSE USES")
+        for key, label in (("excel", "Excel"), ("jmp", "JMP"), ("addins", "Add-ins")):
+            if software.get(key):
+                lines.append(f"  {label}: {software[key]}")
+
+    conventions = (software.get("conventions") or "").strip()
+    if conventions:
+        lines.append("")
+        lines.append("COURSE CONVENTIONS (these override tool defaults)")
+        lines.append(conventions)
+
+    pages = [
+        p for p in (schedule or {}).get("pages", [])
+        if SOFTWARE_PAGE_RE.search(p.get("title", ""))
+    ]
     if limit:
         pages = pages[:limit]
-    lines = ["COURSE SOFTWARE WALKTHROUGHS (link to these when relevant)"]
-    for p in pages:
-        lines.append(f"  - {p['title']}: {p['url']}")
-    return "\n".join(lines)
+    if pages:
+        lines.append("")
+        lines.append("COURSE WALKTHROUGHS (link to one when it matches the task)")
+        for p in pages:
+            lines.append(f"  - {p['title']}: {p['url']}")
+
+    return "\n".join(lines).strip()
 
 
 # --------------------------------------------------------------------------
@@ -385,9 +403,9 @@ def _cached_context(mtimes, day_key, verbose):
 
 
 @st.cache_data(show_spinner=False)
-def _cached_software_pages(mtimes):
-    schedule, _ = load()
-    return render_software_pages(schedule)
+def _cached_software_context(mtimes):
+    schedule, facts = load()
+    return render_software_context(schedule, facts)
 
 
 def get_course_context(verbose=False):
@@ -399,6 +417,6 @@ def get_course_context(verbose=False):
     )
 
 
-def get_software_pages():
-    """Link menu for the software route. Safe to call every rerun."""
-    return _cached_software_pages(_mtimes())
+def get_software_context():
+    """Grounding block for the software route. Safe to call every rerun."""
+    return _cached_software_context(_mtimes())

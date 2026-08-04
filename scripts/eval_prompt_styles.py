@@ -34,7 +34,6 @@ def run_eval(output_path: Path):
         payload = {
             "query": case["query"],
             "chat_history": "Student: I am learning regression.\nAssistant: Great, let's build intuition.",
-            "memory_summary": "- learner goal: understand regression basics",
             "response_mode": case["response_mode"],
             "learning_objective": "Regression modeling and interpretation",
             "learner_level": "novice",
