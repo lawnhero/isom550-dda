@@ -1,22 +1,33 @@
-import json
+import time
+import uuid
+
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.globals import set_verbose
-import uuid
 
 import utils.chains_lcel as chains
+import utils.ui as ui
 from utils.agent_graph import build_ta_agent, run_ta_turn
-from utils.course_context import get_course_context, get_software_context
+from utils.attachments import IMAGE_NOTICE, extract_attachments
+from utils.course_context import (
+    get_course_context,
+    get_course_date_span,
+    get_course_links,
+    get_software_context,
+)
+from utils.progress import PHASE_FAILED, PHASE_WRITING, ProgressReporter
 from utils.sidebar import sidebar, update_session_stats
 import utils.llm_models as llms
 from utils.ta_tools import TurnArtifacts
 
 # Set the page_title
 st.set_page_config(
-    page_title="ISOM 550 DDA Virtual TA", page_icon="📚", layout="wide"
+    page_title="ISOM 550 DDA Virtual TA",
+    page_icon=":material/school:",
+    layout="wide",
 )
 
-# cache the vectorized embedding database 
+# cache the vectorized embedding database
 from utils.utils import (
     load_db,
     query_db_connection,
@@ -29,88 +40,36 @@ from utils.utils import (
 set_verbose(False)
 
 # 1. Load the Vectorised database
-course_path = 'data/course'
-contents_path = 'data/contents'
+#
+# Tier A is deliberately absent here: course facts (dates, people, grading) are
+# looked up from course_data/ by utils.course_context, not embedded. There used
+# to be a `data/course` index of the same facts as Q&A rows; nothing had queried
+# it since Tier A landed, and it had gone stale enough to contradict facts.toml
+# (it still claimed Spring 2026 office hours), so it is gone rather than dormant.
+contents_path = 'data/concepts'
 documents_path = 'data/tier_c'
-course_db = load_db(db_path=course_path)
-contents_db = load_db(db_path=contents_path)
+# Tier B: concept index from course_data/concepts.toml (scripts/build_concepts.py).
+contents_db = load_db(db_path=contents_path, label='concepts')
 # Tier C: class recaps + assignment briefs, built by scripts/build_tier_c.py.
 # Missing until that runs; searches then return nothing and the tool abstains.
-documents_db = load_db(db_path=documents_path)
+documents_db = load_db(db_path=documents_path, label='assignments and recaps')
 
 # 2. MongoDB Atlas connection
 mongo_db = query_db_connection()
 collection = mongo_db['ISOM 550']
 
 # 3. Setup LLM and chains
-main_tutor = llms.grok_with_sonnet_fallback
-claude_haiku = llms.claude_haiku_with_fallback
-agent_llm = llms.openai_gpt4o_mini
+main_tutor = llms.deepseekv4_with_grok_fallback
+claude_haiku = llms.deepseek_v4_flash
+agent_llm = llms.openai_gpt56_luna
 
 all_chains = chains.get_all_chains(main_tutor, claude_haiku)
 class_chain = all_chains['class_chain']
 
-QUICK_ACTIONS = [
-    {
-        "label": "Explain concept",
-        "intent": "explain",
-        "needs": "topic",
-        "clarify": (
-            "What concept would you like to learn? Pick a topic below or type it in the chat."
-        ),
-    },
-    {
-        "label": "Practice question",
-        "intent": "practice",
-        "needs": "topic",
-        "clarify": (
-            "What would you like to practice? Pick a topic below or type it in the chat."
-        ),
-    },
-    {
-        "label": "Check my attempt",
-        "intent": "check",
-        "needs": "attempt",
-        "clarify": (
-            "Paste your attempt in the chat, or attach a screenshot/file, and I'll check it."
-        ),
-    },
-    {
-        "label": "What is next step?",
-        "intent": "next_step",
-        "needs": None,
-        "clarify": "",
-    },
-]
+TA_AVATAR = ":material/school:"
 
-# Concrete openers for students who do not yet know what to ask. Shown in the
-# empty main area before the first question, where they cost no extra space.
-STARTER_PROMPTS = [
-    "When is the midterm exam?",
-    "What's the grading policy?",
-    "Help with Assignment 3",
-    "Guide me through regression analysis",
-    "How do I interpret this statistical output?",
-]
-
-FOLLOW_UP_ACTIONS = [
-    {
-        "label": "Practice this topic",
-        "intent": "practice_same",
-    },
-    {
-        "label": "Try a harder one",
-        "intent": "practice_harder",
-    },
-    {
-        "label": "Switch topic",
-        "intent": "switch_topic",
-    },
-    {
-        "label": "Check my attempt",
-        "intent": "check",
-    },
-]
+# How many student turns between recap cards.
+RECAP_EVERY = 8
 
 
 def _parse_chat_input(raw_input):
@@ -124,64 +83,158 @@ def _parse_chat_input(raw_input):
     return text, files
 
 
-def _escape_md_dollars(text: str) -> str:
-    """Escape $ so Streamlit markdown does not treat it as LaTeX."""
-    if not text:
-        return text
-    # Protect already-escaped dollars, then escape the rest.
-    placeholder = "\u0000"
-    protected = text.replace("\\$", placeholder)
-    return protected.replace("$", "\\$").replace(placeholder, "\\$")
+def _status_sink(status):
+    """Paint one progress event onto the live st.status container.
+
+    The label is the headline -- what the tutor is doing right now -- and the
+    detail lines accumulate inside the (collapsed) container as a record of how
+    the answer was actually put together: which tool the router picked, what it
+    searched for, how many passages came back, which sources they were.
+
+    Phrasing for tool phases comes from ui.working_label, i.e. the same table as
+    the provenance badge under the finished answer, so the two cannot drift.
+
+    Debug events (tool names, raw router arguments) are dropped unless
+    diagnostics are on: a student reading "Chose answer_concept (query=...)"
+    learns nothing the next line does not say in plain language.
+    """
+    def sink(event):
+        if event.debug and not st.session_state.get("show_diagnostics"):
+            return
+        label = event.label or ui.working_label(event.tools)
+        if label:
+            suffix = "..." if event.state == "running" else ""
+            status.update(label=f"{label}{suffix}", state=event.state)
+        if event.detail:
+            status.caption(event.detail)
+
+    return sink
 
 
-def _md(text: str):
-    """Render markdown with $ signs escaped for Streamlit LaTeX."""
-    st.markdown(_escape_md_dollars(text))
+def _stream_answer(stream, progress=None, label=PHASE_WRITING):
+    """Stream tutor text; announce the phase on the first token."""
+    if progress is None:
+        return ui.write_stream_md(stream)
 
-
-def _render_retrieval_sources(retrieval_debug: list, *, key: str) -> None:
-    """Show retrieved course materials in a collapsed expander."""
-    if not retrieval_debug:
-        return
-    with st.expander(
-        f"Sources ({len(retrieval_debug)})",
-        expanded=False,
-        icon=":material/library_books:",
-        key=key,
-    ):
-        for row in retrieval_debug:
-            source = row.get("source") or "Unknown source"
-            preview = (row.get("preview") or "").strip()
-            st.markdown(f"**{source}**")
-            if preview:
-                st.caption(preview)
-
-
-def _write_stream_md(stream):
-    """Stream markdown tokens while escaping $ for Streamlit LaTeX."""
     placeholder = st.empty()
     chunks = []
     for chunk in stream:
+        if not chunks:
+            progress.emit(label="Preparing your answer...")
+        else:
+            progress.emit(label=label)
         text = chunk if isinstance(chunk, str) else getattr(chunk, "content", None) or str(chunk)
         chunks.append(text)
-        placeholder.markdown(_escape_md_dollars("".join(chunks)))
+        placeholder.markdown(ui.escape_md_dollars("".join(chunks)))
     return "".join(chunks)
 
 
-def _show_thinking_placeholder(container):
-    """Show a loading placeholder while routing/retrieval runs."""
-    try:
-        container.skeleton(height=72)
-    except Exception:
-        container.markdown(":shimmer[Looking up course materials...]")
+# --------------------------------------------------------------------------
+# Per-message metadata
+#
+# Keyed by index into chat_history. Everything a finished turn needs to be
+# redrawn after the closing st.rerun() lives here: provenance, sources,
+# abstention, feedback id, recap. Before this existed those were rendered live
+# and then destroyed by the rerun -- sources and recap cards in particular were
+# computed on every turn and seen by nobody.
+# --------------------------------------------------------------------------
+def _set_meta(index: int, **fields) -> None:
+    st.session_state.message_meta.setdefault(index, {}).update(fields)
 
 
+def _get_meta(index: int) -> dict:
+    return st.session_state.message_meta.get(index, {})
+
+
+def _record_feedback(interaction_id: str, key: str) -> None:
+    """st.feedback callback: log the rating without a second rerun."""
+    value = st.session_state.get(key)
+    if value is None:
+        return
+    store_feedback(
+        collection=collection,
+        session_id=st.session_state.session_id,
+        interaction_id=interaction_id,
+        helpful="Helpful" if value == 1 else "Not helpful",
+        note="",
+        mode="unified",
+    )
+    st.session_state.feedback_submitted_ids.append(interaction_id)
+    st.toast("Thanks — that helps improve the tutor.", icon=":material/favorite:")
+
+
+def _render_section(section: dict, *, key: str) -> None:
+    """One answer section: its text, its badge, its sources."""
+    ui.md(section.get("text", ""))
+    weak = section.get("retrieval_quality") == "weak"
+    ui.render_provenance(
+        section.get("route", ""),
+        abstained=section.get("abstained", False),
+        weak=weak,
+    )
+    ui.render_sources(section.get("sources") or [], key=f"sources_{key}", expanded=weak)
+    if section.get("abstained"):
+        ui.render_unresolved(get_course_links(), key=f"unresolved_{key}")
+
+
+def _render_ai_message(index: int, content: str, *, is_last: bool) -> None:
+    """Draw one assistant turn plus everything hanging off it."""
+    meta = _get_meta(index)
+    with st.chat_message("AI", avatar=TA_AVATAR):
+        # Sits where the live status sat, in the state it finished in.
+        ui.render_progress(meta.get("progress"))
+
+        if meta.get("attachment_notice"):
+            st.warning(meta["attachment_notice"], icon=":material/image_not_supported:")
+
+        sections = meta.get("sections") or []
+        if sections:
+            # Redraw the turn the way it streamed: each tool's answer with its
+            # own badge, rather than one badge over everything.
+            for position, section in enumerate(sections):
+                if position:
+                    st.space("small")
+                _render_section(section, key=f"{index}_{position}")
+        else:
+            # Greeting, clarifying turn, or the ungrounded fallback answer.
+            ui.md(content)
+            weak = meta.get("retrieval_quality") == "weak"
+            if meta.get("route"):
+                ui.render_provenance(
+                    meta["route"],
+                    abstained=meta.get("abstained", False),
+                    weak=weak,
+                )
+            ui.render_sources(
+                meta.get("sources") or [], key=f"sources_{index}", expanded=weak
+            )
+            if meta.get("abstained"):
+                ui.render_unresolved(get_course_links(), key=f"unresolved_{index}")
+
+        ui.render_recap(meta.get("recap", ""))
+
+        interaction_id = meta.get("interaction_id")
+        if is_last and interaction_id:
+            if interaction_id in st.session_state.feedback_submitted_ids:
+                st.caption("Rating recorded.")
+            else:
+                key = f"feedback_{interaction_id}"
+                st.feedback(
+                    "thumbs",
+                    key=key,
+                    on_change=_record_feedback,
+                    args=(interaction_id, key),
+                )
+
+        if is_last and st.session_state.get("show_diagnostics") and meta.get("diagnostics"):
+            ui.render_diagnostics(meta["diagnostics"], key=f"diag_{index}")
+
+
+# --------------------------------------------------------------------------
+# Clarifying turns
+# --------------------------------------------------------------------------
 def _append_clarifying_turn(action_label: str, clarify_text: str, intent: str, needs: str):
     """Record a clarifying turn and wait for the missing topic/attempt."""
-    with st.chat_message("Human"):
-        _md(action_label)
-    with st.chat_message("AI", avatar="🦜"):
-        _md(clarify_text)
     st.session_state.chat_history.append(HumanMessage(action_label))
     st.session_state.chat_history.append(AIMessage(clarify_text))
     st.session_state.pending_intent = {
@@ -191,24 +244,10 @@ def _append_clarifying_turn(action_label: str, clarify_text: str, intent: str, n
     }
 
 
-def _resolve_quick_action(action: dict, chat_history):
-    """
-    Resolve a fresh quick action.
-
-    Fresh clicks that need topic/attempt always ask first (do not infer from history).
-    Returns (user_query, did_clarify).
-    """
-    intent = action["intent"]
-    needs = action["needs"]
-
-    if needs is None:
-        return chains.compose_quick_action_query(intent), False
-
-    if needs in {"topic", "attempt"}:
-        _append_clarifying_turn(action["label"], action["clarify"], intent, needs)
-        return "", True
-
-    return "", False
+def _cancel_pending() -> None:
+    st.session_state.pending_intent = None
+    st.session_state.pop("clarify_topic_pills", None)
+    st.session_state.pop("clarify_subtopic_pills", None)
 
 
 def _conversation_started(chat_history) -> bool:
@@ -216,57 +255,52 @@ def _conversation_started(chat_history) -> bool:
     return any("Human" in str(type(message)) for message in (chat_history or []))
 
 
-def _resolve_follow_up_action(action: dict):
-    """Resolve a post-conversation follow-up into a query or clarifying turn."""
-    intent = action["intent"]
+def _resolve_action(action: dict):
+    """Resolve a clicked chip into (user_query, display_text, did_clarify).
+
+    did_clarify=True means we asked a question instead and should rerun.
+    """
+    if action.get("kind") == "query":
+        return action["value"], action["label"], False
+
+    intent = action["value"]
+
+    if intent in {"explain", "practice", "check"}:
+        _append_clarifying_turn(
+            action["label"], action["clarify"], intent, action["needs"]
+        )
+        return "", "", True
+
     topic = (st.session_state.get("last_practice_topic") or "").strip()
     if not topic:
         topic = chains.infer_topic_from_history(st.session_state.chat_history)
 
     if intent == "practice_same":
         if topic:
-            return chains.compose_quick_action_query("practice", topic=topic), False
+            return chains.compose_quick_action_query("practice", topic=topic), action["label"], False
         _append_clarifying_turn(
             action["label"],
             "What would you like to practice? Pick a topic below or type it in the chat.",
             "practice",
             "topic",
         )
-        return "", True
+        return "", "", True
 
     if intent == "practice_harder":
         if topic:
             return (
                 f"Generate a harder practice question on this ISOM 550 topic: {topic}. "
                 "Stay strictly on this topic; do not invent an unrelated scenario."
-            ), False
+            ), action["label"], False
         _append_clarifying_turn(
             action["label"],
             "What topic should the harder practice question focus on?",
             "practice",
             "topic",
         )
-        return "", True
+        return "", "", True
 
-    if intent == "switch_topic":
-        _append_clarifying_turn(
-            action["label"],
-            "Which topic would you like to switch to? Pick one below or type it in the chat.",
-            "practice",
-            "topic",
-        )
-        return "", True
-
-    if intent == "check":
-        _append_clarifying_turn(
-            action["label"],
-            "Paste your attempt in the chat, or attach a screenshot/file, and I'll check it.",
-            "check",
-            "attempt",
-        )
-        return "", True
-
-    return "", False
+    return "", "", False
 
 
 def _advance_to_subtopic_selection(pending: dict, parent_topic: str):
@@ -276,10 +310,6 @@ def _advance_to_subtopic_selection(pending: dict, parent_topic: str):
         f"Which part of **{parent_topic}** do you want to focus on? "
         "Pick a subtopic below or type it in the chat."
     )
-    with st.chat_message("Human"):
-        _md(parent_topic)
-    with st.chat_message("AI", avatar="🦜"):
-        _md(clarify)
     st.session_state.chat_history.append(HumanMessage(parent_topic))
     st.session_state.chat_history.append(AIMessage(clarify))
     st.session_state.pending_intent = {
@@ -296,161 +326,96 @@ def _resolve_pending_intent(pending, selected_value, typed_query, uploaded_files
     """
     Resolve a pending clarify step.
 
-    Returns (user_query, did_clarify_again).
-    did_clarify_again=True means we advanced topic -> subtopic and should rerun.
+    Returns (user_query, escaped, did_clarify_again).
+      escaped=True          -> the student typed a new question instead of an
+                               answer; abandon the pending intent and treat the
+                               text as an ordinary question.
+      did_clarify_again=True -> we advanced topic -> subtopic and should rerun.
     """
     intent = pending["intent"]
     needs = pending["needs"]
 
-    if needs == "topic":
+    if needs in {"topic", "subtopic"}:
         choice = (selected_value or typed_query or "").strip()
         if not choice:
-            return "", False
+            return "", False, False
 
-        # Pill selection (or typed exact topic label) with subtopics -> ask subtopic next.
-        if choice in chains.CURRICULUM_TOPICS and chains.get_subtopics(choice):
-            _advance_to_subtopic_selection(pending, choice)
-            return "", True
+        # A pill click is always an answer to the clarifying question. Only
+        # typed text can be a change of subject.
+        if not selected_value and chains.is_new_question(typed_query):
+            return typed_query, True, False
 
-        # Typed free-form focus, or a topic with no subtopics -> generate now.
-        return chains.compose_quick_action_query(intent, topic=choice), False
+        if needs == "topic":
+            # Pill selection (or typed exact topic label) with subtopics -> ask subtopic next.
+            if choice in chains.CURRICULUM_TOPICS and chains.get_subtopics(choice):
+                _advance_to_subtopic_selection(pending, choice)
+                return "", False, True
+            return chains.compose_quick_action_query(intent, topic=choice), False, False
 
-    if needs == "subtopic":
-        choice = (selected_value or typed_query or "").strip()
-        if not choice:
-            return "", False
         focus = chains.format_topic_focus(pending.get("parent_topic", ""), choice)
-        return chains.compose_quick_action_query(intent, topic=focus), False
+        return chains.compose_quick_action_query(intent, topic=focus), False, False
 
     if needs == "attempt":
         if not typed_query and not uploaded_files:
-            return "", False
-        return chains.compose_quick_action_query(intent, attempt_text=typed_query), False
+            return "", False, False
+        # A question with nothing attached is not an attempt to grade. Without
+        # this, "when is A3 due?" became "Please check my attempt: when is A3 due?"
+        if not uploaded_files and chains.is_new_question(typed_query):
+            return typed_query, True, False
+        return chains.compose_quick_action_query(intent, attempt_text=typed_query), False, False
 
-    return typed_query, False
-
-
-def _render_tool_calls(tool_calls):
-    """Show ordered tool calls from the latest agent turn."""
-    if not tool_calls:
-        st.caption("Tool calls: _(none — agent answered without tools)_")
-        return
-    with st.expander(f"Tool calls ({len(tool_calls)})", expanded=True):
-        for idx, call in enumerate(tool_calls, start=1):
-            name = call.get("name", "unknown")
-            args = call.get("args") or {}
-            st.markdown(f"**{idx}. `{name}`**")
-            st.code(json.dumps(args, indent=2, ensure_ascii=False), language="json")
+    return typed_query, False, False
 
 
 # 4. Build an app with streamlit
 def main():
-    if "session_id" not in st.session_state:
-        st.session_state.session_id = str(uuid.uuid4())
-    if "last_interaction_id" not in st.session_state:
-        st.session_state.last_interaction_id = ""
-    if "recap_count" not in st.session_state:
-        st.session_state.recap_count = 0
-    if "feedback_submitted_ids" not in st.session_state:
-        st.session_state.feedback_submitted_ids = []
-    if "pending_intent" not in st.session_state:
-        st.session_state.pending_intent = None
-    if "last_practice_topic" not in st.session_state:
-        st.session_state.last_practice_topic = ""
-    if "last_tool_calls" not in st.session_state:
-        st.session_state.last_tool_calls = []
-    if "last_retrieval_debug" not in st.session_state:
-        st.session_state.last_retrieval_debug = []
-    if "message_sources" not in st.session_state:
-        st.session_state.message_sources = {}
+    st.session_state.setdefault("session_id", str(uuid.uuid4()))
+    st.session_state.setdefault("feedback_submitted_ids", [])
+    st.session_state.setdefault("pending_intent", None)
+    st.session_state.setdefault("last_practice_topic", "")
+    st.session_state.setdefault("message_meta", {})
+    st.session_state.setdefault("student_turns", 0)
 
-    st.header("Virtual TA - ISOM 550 DDA")
+    st.title("ISOM 550 Virtual TA")
     sidebar_settings = sidebar()
     initial_text = (
-        "Ask any ISOM 550 question. I can answer logistics questions, explain analytics "
-        "concepts, and guide you step-by-step based on your selected response style."
+        "Hi, I'm Dayton, the TA for ISOM 550 Data and Decision Analytics.\n\n"
+        "I can look up deadlines and course policy, explain what an assignment "
+        "asks for, walk you through JMP or Excel, and quiz you on any topic. "
+        "Ask me anything, or start with one of the suggestions below."
     )
-    option = "unified"
-    
+
     # Initialize chat history in session state
     if "chat_history" not in st.session_state or not st.session_state.chat_history:
         st.session_state.chat_history = [AIMessage(initial_text)]
 
-    # Display conversation statistics in main area
-    if len(st.session_state.chat_history) > 1:
-        st.caption(f"Conversation: {len(st.session_state.chat_history)} messages")
-
     # display previous conversation history
+    last_index = len(st.session_state.chat_history) - 1
     for idx, message in enumerate(st.session_state.chat_history):
         if isinstance(message, HumanMessage):
             with st.chat_message("Human"):
-                _md(message.content)
+                ui.md(message.content)
         elif isinstance(message, AIMessage):
-            with st.chat_message("AI", avatar="🦜"):
-                _md(message.content)
-                _render_retrieval_sources(
-                    st.session_state.message_sources.get(idx, []),
-                    key=f"sources_hist_{idx}",
-                )
+            _render_ai_message(idx, message.content, is_last=(idx == last_index))
+
+    pending = st.session_state.pending_intent
+    conversation_started = _conversation_started(st.session_state.chat_history)
 
     # Starter prompts fill the empty main area before the first question.
     starter_choice = None
-    if not _conversation_started(st.session_state.chat_history) and not st.session_state.pending_intent:
+    if not conversation_started and not pending:
         st.caption("Try asking")
         starter_choice = st.pills(
             "Example questions",
-            options=STARTER_PROMPTS,
+            options=ui.STARTER_PROMPTS,
             selection_mode="single",
             key="starter_prompt_pills",
             label_visibility="collapsed",
         )
 
-    # Inline feedback controls for latest response.
-    if st.session_state.last_interaction_id:
-        latest_id = st.session_state.last_interaction_id
-        st.caption("Rate the latest response")
-        if latest_id in st.session_state.feedback_submitted_ids:
-            st.success("Feedback received. Thank you.")
-        else:
-            up_col, down_col, _spacer = st.columns([1, 1, 8])
-            if up_col.button("👍", key=f"thumb_up_{latest_id}", width='stretch'):
-                store_feedback(
-                    collection=collection,
-                    session_id=st.session_state.session_id,
-                    interaction_id=latest_id,
-                    helpful="Helpful",
-                    note="",
-                    mode="unified",
-                )
-                st.session_state.feedback_submitted_ids.append(latest_id)
-                st.rerun()
-            if down_col.button("👎", key=f"thumb_down_{latest_id}", width='stretch'):
-                store_feedback(
-                    collection=collection,
-                    session_id=st.session_state.session_id,
-                    interaction_id=latest_id,
-                    helpful="Not helpful",
-                    note="",
-                    mode="unified",
-                )
-                st.session_state.feedback_submitted_ids.append(latest_id)
-                st.rerun()
-
-    if sidebar_settings["show_diagnostics"] and st.session_state.last_interaction_id:
-        _render_tool_calls(st.session_state.last_tool_calls)
-        if st.session_state.last_retrieval_debug:
-            st.caption("Retrieved chunks")
-            st.dataframe(
-                st.session_state.last_retrieval_debug,
-                width='stretch',
-            )
-        elif st.session_state.last_tool_calls:
-            st.caption("Retrieved chunks: _(none for this tool)_")
-
     # Topic / subtopic pills while waiting for a clarifying detail.
     selected_topic = None
     selected_subtopic = None
-    pending = st.session_state.pending_intent
     if pending and pending.get("needs") == "topic":
         st.caption("Suggested topics")
         selected_topic = st.pills(
@@ -473,45 +438,60 @@ def main():
                 label_visibility="collapsed",
             )
 
-    conversation_started = _conversation_started(st.session_state.chat_history)
+    # An explicit way out of the clarify state. Typing a new question also
+    # works (see _resolve_pending_intent), but the student should be able to
+    # see that backing out is allowed rather than having to discover it.
+    if pending:
+        with st.container(horizontal=True, horizontal_alignment="left"):
+            if st.button(
+                "Never mind",
+                icon=":material/close:",
+                key="cancel_pending",
+                type="tertiary",
+            ):
+                _cancel_pending()
+                st.rerun()
 
     # Pin composer controls so students always see them while scrolling history.
     selected_action = None
-    selected_follow_up = None
     with st.bottom:
-        if not conversation_started and not pending:
-            st.caption("Quick actions")
-            qa_cols = st.columns(len(QUICK_ACTIONS))
-            for idx, action in enumerate(QUICK_ACTIONS):
-                if qa_cols[idx].button(
-                    action["label"],
-                    key=f"quick_action_{idx}",
-                    width="stretch",
-                ):
-                    selected_action = action
-        elif conversation_started and not pending:
-            st.caption("What next?")
-            follow_cols = st.columns(len(FOLLOW_UP_ACTIONS))
-            for idx, action in enumerate(FOLLOW_UP_ACTIONS):
-                if follow_cols[idx].button(
-                    action["label"],
-                    key=f"follow_up_action_{idx}",
-                    width="stretch",
-                ):
-                    selected_follow_up = action
+        if not pending:
+            if not conversation_started:
+                st.caption("Quick actions")
+                selected_action = ui.render_action_row(
+                    ui.QUICK_ACTIONS, key_prefix="quick_action"
+                )
+            else:
+                # Chips follow the route that answered the last turn: a
+                # deadline answer offers "what's due next", a practice question
+                # offers "check my work". A single fixed practice-oriented row
+                # used to appear after every answer regardless.
+                last_meta = _get_meta(last_index)
+                st.caption("What next?")
+                selected_action = ui.render_action_row(
+                    ui.follow_ups_for(
+                        last_meta.get("route", ""),
+                        abstained=last_meta.get("abstained", False),
+                        covered={
+                            s.get("route")
+                            for s in (last_meta.get("sections") or [])
+                        },
+                    ),
+                    key_prefix="follow_up",
+                )
 
-        chat_placeholder = "Ask a question, or paste a screenshot of your work..."
+        chat_placeholder = "Ask a question, or attach your work..."
         if pending and pending.get("needs") == "topic":
-            chat_placeholder = "Type the topic you want to focus on..."
+            chat_placeholder = "Pick a topic above, or type one..."
         elif pending and pending.get("needs") == "subtopic":
-            chat_placeholder = "Type the subtopic you want to focus on..."
+            chat_placeholder = "Pick a subtopic above, or type one..."
         elif pending and pending.get("needs") == "attempt":
             chat_placeholder = "Paste your attempt, or attach a file..."
 
         raw_input = st.chat_input(
             chat_placeholder,
             key="user_query",
-            accept_file="multiple",
+            accept_file=True,
             file_type=["png", "jpg", "jpeg", "pdf", "txt", "csv"],
             submit_mode="stop",
         )
@@ -521,26 +501,17 @@ def main():
     user_query = ""
     display_user_text = ""
 
-    # 1) Follow-up action click (after conversation has started)
-    if selected_follow_up is not None:
-        composed, did_clarify = _resolve_follow_up_action(selected_follow_up)
+    # 1) Chip click - quick action before the conversation starts, or a
+    #    route-aware follow-up after it.
+    if selected_action is not None:
+        _cancel_pending()
+        composed, label, did_clarify = _resolve_action(selected_action)
         if did_clarify:
             st.rerun()
         user_query = composed
-        display_user_text = selected_follow_up["label"]
+        display_user_text = label
 
-    # 2) Fresh quick action click (only before conversation starts)
-    elif selected_action is not None:
-        st.session_state.pending_intent = None
-        composed, did_clarify = _resolve_quick_action(
-            selected_action, st.session_state.chat_history
-        )
-        if did_clarify:
-            st.rerun()
-        user_query = composed
-        display_user_text = selected_action["label"]
-
-    # 3) Completing a pending clarifying turn
+    # 2) Completing (or abandoning) a pending clarifying turn
     elif pending is not None:
         selected_value = None
         if pending.get("needs") == "topic":
@@ -548,12 +519,16 @@ def main():
         elif pending.get("needs") == "subtopic":
             selected_value = selected_subtopic
 
-        composed, did_clarify_again = _resolve_pending_intent(
+        composed, escaped, did_clarify_again = _resolve_pending_intent(
             pending, selected_value, typed_query, uploaded_files
         )
         if did_clarify_again:
             st.rerun()
-        if composed:
+        if escaped:
+            _cancel_pending()
+            user_query = composed
+            display_user_text = composed
+        elif composed:
             detail_text = selected_value or typed_query
             if pending.get("needs") == "subtopic":
                 detail_text = chains.format_topic_focus(
@@ -562,13 +537,11 @@ def main():
                 )
             display_user_text = detail_text if detail_text else "Attached attempt for review"
             user_query = composed
-            st.session_state.pending_intent = None
-            st.session_state.pop("clarify_topic_pills", None)
-            st.session_state.pop("clarify_subtopic_pills", None)
+            _cancel_pending()
             if detail_text:
                 st.session_state.last_practice_topic = detail_text
 
-    # 4) Normal free-form chat, or a starter prompt from the empty state
+    # 3) Normal free-form chat, or a starter prompt from the empty state
     else:
         user_query = typed_query
         display_user_text = typed_query
@@ -580,125 +553,220 @@ def main():
             user_query = "Please review the attached file(s) and help me with the next step."
             display_user_text = user_query
 
-    if user_query:
-        attachment_note = ""
-        if uploaded_files:
-            names = ", ".join(f.name for f in uploaded_files)
-            attachment_note = f"\n\n[Student attached: {names}]"
+    if not user_query:
+        return
 
-        query_for_model = f"{user_query}{attachment_note}"
-        learning_profile = chains.build_learning_profile(
-            query=query_for_model,
-            response_mode=sidebar_settings["response_mode"],
-            chat_history=st.session_state.chat_history,
-        )
+    # ----------------------------------------------------------------------
+    # Run the turn
+    # ----------------------------------------------------------------------
+    attachment_context, unreadable_names, has_image = extract_attachments(uploaded_files)
+    attachment_note = ""
+    if uploaded_files:
+        names = ", ".join(f.name for f in uploaded_files)
+        attachment_note = f"\n\n[Student attached: {names}]"
 
-        # Update session statistics
-        update_session_stats()
-        
-        # display user query
-        with st.chat_message("Human"):
-            _md(display_user_text or user_query)
-            for uploaded in uploaded_files:
-                mime = (uploaded.type or "").lower()
-                if mime.startswith("image/"):
-                    st.image(uploaded, caption=uploaded.name, width="stretch")
-                else:
-                    st.caption(f"Attached: {uploaded.name}")
+    query_for_model = f"{user_query}{attachment_note}{attachment_context}"
+    learning_profile = chains.build_learning_profile(
+        query=query_for_model,
+        response_mode=sidebar_settings["response_mode"],
+        chat_history=st.session_state.chat_history,
+    )
 
-        route_label = "agent"
-        retrieval_debug = []
-        tools_used = []
-        turn_result = {
-            "answer": "",
-            "route_label": "agent",
-            "tools_used": [],
-            "retrieval_debug": [],
-            "practice_topic": "",
-            "abstained": False,
-        }
-        effective_response_mode = sidebar_settings["response_mode"]
-        with st.chat_message("AI", avatar="🦜"):
-            thinking = st.empty()
-            try:
-                _show_thinking_placeholder(thinking)
+    update_session_stats()
 
-                artifacts = TurnArtifacts()
-                agent = build_ta_agent(
-                    agent_llm=agent_llm,
-                    course_db=course_db,
-                    contents_db=contents_db,
-                    documents_db=documents_db,
-                    chains_dict=all_chains,
-                    chat_history=st.session_state.chat_history,
-                    response_mode=sidebar_settings["response_mode"],
-                    artifacts=artifacts,
-                    course_context=get_course_context(),
-                    software_context=get_software_context(),
-                )
-                turn_result = run_ta_turn(
-                    agent=agent,
-                    query=query_for_model,
-                    chat_history=st.session_state.chat_history,
-                    artifacts=artifacts,
-                    memory_window=sidebar_settings["memory_window"],
-                )
+    with st.chat_message("Human"):
+        ui.md(display_user_text or user_query)
+        for uploaded in uploaded_files:
+            mime = (uploaded.type or "").lower()
+            if mime.startswith("image/"):
+                st.image(uploaded, caption=uploaded.name, width="stretch")
+            else:
+                st.caption(f"Attached: {uploaded.name}")
 
-                thinking.empty()
-                stream_spec = turn_result.get("stream_spec")
-                if stream_spec is not None:
-                    chain = all_chains.get(stream_spec.chain_key)
-                    if chain is None:
-                        raise ValueError(f"Unknown stream chain: {stream_spec.chain_key}")
-                    ai_response = _write_stream_md(chain.stream(stream_spec.payload))
-                elif turn_result.get("answer"):
-                    ai_response = turn_result["answer"]
-                    _md(ai_response)
-                else:
-                    ai_response = _write_stream_md(
-                        class_chain.stream(
-                            chains.build_chain_payload(
-                                query=query_for_model,
-                                chat_history=st.session_state.chat_history,
-                                response_mode=effective_response_mode,
+    route_label = "agent_direct"
+    retrieval_debug = []
+    tools_used = []
+    abstained = False
+    retrieval_quality = ""
+    diagnostics = {}
+    turn_result = {}
+    # One entry per answer section. Empty on the fallback path, where a single
+    # ungrounded answer is all there is.
+    sections = []
+    effective_response_mode = sidebar_settings["response_mode"]
+
+    # Wall clock for the whole turn, routing included -- what the student
+    # actually waited, not the sum of the parts we happened to measure.
+    turn_started = time.perf_counter()
+
+    with st.chat_message("AI", avatar=TA_AVATAR):
+        # A status line rather than a bare skeleton: routing is a full LLM call
+        # before a single token of the answer appears, and "checking the course
+        # schedule" is both an honest progress signal and a chance for the
+        # student to notice a misroute before reading a wrong answer.
+        status = st.status("Reading your question...", type="compact")
+        # Every step of the turn reports through here: the router's choice of
+        # tool, each search and what it found, then the writing phase.
+        progress = ProgressReporter(sink=_status_sink(status))
+        try:
+            artifacts = TurnArtifacts()
+            agent = build_ta_agent(
+                agent_llm=agent_llm,
+                contents_db=contents_db,
+                documents_db=documents_db,
+                chains_dict=all_chains,
+                chat_history=st.session_state.chat_history,
+                response_mode=sidebar_settings["response_mode"],
+                artifacts=artifacts,
+                course_context=get_course_context(),
+                software_context=get_software_context(),
+                course_span=get_course_date_span(),
+                progress=progress,
+            )
+            # Routing + hybrid retrieval happen inside run_ta_turn (agent +
+            # tools), and report their own progress as they go.
+            turn_result = run_ta_turn(
+                agent=agent,
+                query=query_for_model,
+                chat_history=st.session_state.chat_history,
+                artifacts=artifacts,
+                memory_window=sidebar_settings["memory_window"],
+                progress=progress,
+            )
+
+            route_label = turn_result["route_label"]
+            answerable = turn_result.get("answerable_steps") or []
+
+            stream_started = time.perf_counter()
+            texts = []
+
+            if answerable:
+                # One section per tool call, in the order the model asked for
+                # them -- which mirrors the order the student asked. Each gets
+                # its own badge and its own sources, so a JMP walkthrough and a
+                # concept explanation are never merged under one label.
+                for position, step in enumerate(answerable):
+                    if position:
+                        st.space("small")
+                    # Each section says which of them is being written, so a
+                    # two-tool turn does not look stalled halfway through.
+                    section_label = PHASE_WRITING
+                    if len(answerable) > 1:
+                        badge = ui.route_meta(step.tool_name)["badge"]
+                        section_label = f"Writing the {badge.lower()} part"
+                    if step.stream_spec is not None:
+                        chain = all_chains.get(step.stream_spec.chain_key)
+                        print('-----chain: ', step.stream_spec.chain_key)
+                        if chain is None:
+                            raise ValueError(
+                                f"Unknown stream chain: {step.stream_spec.chain_key}"
                             )
+                        # The label flips on the first streamed token.
+                        text = _stream_answer(
+                            chain.stream(step.stream_spec.payload),
+                            progress=progress,
+                            label=section_label,
                         )
-                    )
-
-                ai_response_for_history = ai_response
-                route_label = turn_result["route_label"]
-                tools_used = turn_result["tools_used"]
-                tool_calls = turn_result.get("tool_calls") or []
-                retrieval_debug = turn_result.get("retrieval_debug") or []
-                st.session_state.last_tool_calls = tool_calls
-                st.session_state.last_retrieval_debug = retrieval_debug
-
-                if "answer_logistics" in tools_used and retrieval_debug:
-                    _render_retrieval_sources(
-                        retrieval_debug,
-                        key="sources_live_current",
-                    )
-
-                if sidebar_settings["show_diagnostics"]:
-                    _render_tool_calls(tool_calls)
-                    st.caption(f"Effective response style: `{effective_response_mode}`")
-                    if retrieval_debug:
-                        st.caption("Retrieved chunks")
-                        st.dataframe(retrieval_debug, width='stretch')
                     else:
-                        st.caption("Retrieved chunks: _(none)_")
+                        progress.emit(label=section_label)
+                        text = step.static_answer
+                        ui.md(text)
+                    weak = step.retrieval_quality == "weak"
+                    ui.render_provenance(
+                        step.tool_name, abstained=step.abstained, weak=weak
+                    )
+                    ui.render_sources(
+                        step.retrieval_debug,
+                        key=f"sources_live_{position}",
+                        expanded=weak,
+                    )
+                    if step.abstained:
+                        ui.render_unresolved(
+                            get_course_links(), key=f"unresolved_live_{position}"
+                        )
+                    texts.append(text)
+                ai_response = "\n\n".join(t for t in texts if t)
+            elif turn_result.get("answer"):
+                progress.emit(label=PHASE_WRITING)
+                ai_response = turn_result["answer"]
+                ui.md(ai_response)
+            else:
+                progress.emit(
+                    detail="No tool prepared an answer — answering directly",
+                    tools=["agent_direct"],
+                )
+                ai_response = _stream_answer(
+                    class_chain.stream(
+                        chains.build_chain_payload(
+                            query=query_for_model,
+                            chat_history=st.session_state.chat_history,
+                            response_mode=effective_response_mode,
+                        )
+                    ),
+                    progress=progress,
+                )
 
-            except Exception as e:
-                print(e)
-                thinking.empty()
-                route_label = "fallback_class_chain"
-                effective_response_mode = "Direct answer"
-                st.warning("I hit an agent issue and switched to direct tutoring mode for this turn.")
-                st.session_state.last_tool_calls = []
-                st.session_state.last_retrieval_debug = []
-                ai_response_for_history = _write_stream_md(
+            stream_ms = int((time.perf_counter() - stream_started) * 1000)
+            ai_response_for_history = ai_response
+            sections = [
+                {
+                    "text": text,
+                    "route": step.tool_name,
+                    "sources": step.retrieval_debug,
+                    "abstained": step.abstained,
+                    "retrieval_quality": step.retrieval_quality,
+                }
+                for step, text in zip(answerable, texts)
+            ]
+            tools_used = turn_result["tools_used"]
+            retrieval_debug = turn_result.get("retrieval_debug") or []
+            abstained = bool(turn_result.get("abstained", False))
+            retrieval_quality = turn_result.get("retrieval_quality") or ""
+            diagnostics = {
+                "tool_calls": turn_result.get("tool_calls") or [],
+                "trace": turn_result.get("trace") or [],
+                "retrieval_debug": retrieval_debug,
+                "router_ms": turn_result.get("router_ms", 0),
+                "router_text": turn_result.get("router_text", ""),
+                "stream_ms": stream_ms,
+                "route_label": route_label,
+                "response_mode": effective_response_mode,
+                "abstained": abstained,
+                "retrieval_quality": retrieval_quality,
+            }
+
+            # The turn collapses to one verdict: what was consulted, how much
+            # of it, and how long it took. This is also the label the stored
+            # status keeps, so the transcript reads the same as the live turn.
+            progress.emit(
+                label=ui.completion_label(
+                    [section["route"] for section in sections] or [route_label],
+                    source_count=len(retrieval_debug),
+                    seconds=time.perf_counter() - turn_started,
+                    abstained=abstained,
+                ),
+                state="complete",
+            )
+
+        except Exception as e:
+            print(e)
+            # The exception text is for whoever is debugging, not the student:
+            # the label already says the lookup failed, and the fallback answer
+            # arrives underneath it either way.
+            progress.emit(label=PHASE_FAILED, state="error")
+            progress.emit(detail=str(e), debug=True)
+            route_label = "fallback_class_chain"
+            effective_response_mode = "Direct answer"
+            diagnostics = {
+                "tool_calls": [], "trace": [], "retrieval_debug": [],
+                "router_ms": 0, "router_text": "",
+                "stream_ms": 0, "route_label": "fallback_class_chain",
+                "response_mode": effective_response_mode, "abstained": False,
+            }
+            try:
+                ai_response_for_history = _stream_answer(
                     class_chain.stream({
-                        'query': query_for_model, 
+                        'query': query_for_model,
                         'chat_history': chains.format_chat_history(
                             st.session_state.chat_history,
                             max_messages=sidebar_settings["memory_window"],
@@ -707,63 +775,124 @@ def main():
                         "learning_objective": learning_profile["learning_objective"],
                         "learner_level": learning_profile["learner_level"],
                         "attempt_check": learning_profile["attempt_check"],
-                    }))
-
-        practice_topic = turn_result.get("practice_topic") or chains.infer_topic_from_history(
-            st.session_state.chat_history + [HumanMessage(query_for_model)]
-        )
-        if practice_topic:
-            st.session_state.last_practice_topic = practice_topic
-
-        # append AI response to chat history
-        history_user_text = (display_user_text or user_query) + attachment_note
-        st.session_state.chat_history.append(HumanMessage(history_user_text))
-        st.session_state.chat_history.append(AIMessage(ai_response_for_history))
-        if "answer_logistics" in tools_used and retrieval_debug:
-            st.session_state.message_sources[len(st.session_state.chat_history) - 1] = retrieval_debug
-
-        unresolved = (
-            turn_result.get("abstained", False)
-            or "don't have enough information" in ai_response_for_history.lower()
-            or "not covered" in ai_response_for_history.lower()
-        )
-        event_payload = build_event_payload(
-            event_type="query",
-            session_id=st.session_state.session_id,
-            mode=option,
-            response_mode=effective_response_mode,
-            query=user_query,
-            route_label=route_label,
-            learning_objective=learning_profile["learning_objective"],
-            learner_level=learning_profile["learner_level"],
-            resolved=not unresolved,
-            metadata={
-                "tools_used": tools_used,
-                "tool_calls": turn_result.get("tool_calls") or [],
-                "source_count": len(retrieval_debug),
-                "attachment_count": len(uploaded_files),
-                "attachment_names": [f.name for f in uploaded_files],
-            },
-        )
-        interaction_id = store_event(collection, event_payload)
-        st.session_state.last_interaction_id = str(interaction_id)
-
-        # Recap card every 4 user turns.
-        recent_turns = chains.format_chat_history(
-            st.session_state.chat_history,
-            max_messages=sidebar_settings["memory_window"],
-        )
-        st.session_state.recap_count += 1
-        if st.session_state.recap_count % 4 == 0:
-            try:
-                recap_text = all_chains["recap_chain"].invoke(
-                    {"chat_history": recent_turns}
+                    }),
+                    progress=progress,
+                    label="Answering without course materials",
                 )
-                st.info(f"Learning recap:\n\n{recap_text}")
-            except Exception:
-                pass
+                progress.emit(
+                    label=ui.completion_label(
+                        ["fallback_class_chain"],
+                        seconds=time.perf_counter() - turn_started,
+                    ),
+                    state="error",
+                )
+            except Exception as fallback_error:
+                # Both the agent and the fallback failed. Say so in the
+                # transcript rather than letting a NameError take the app down.
+                print(fallback_error)
+                abstained = True
+                ai_response_for_history = (
+                    "I could not reach the tutoring service for that question. "
+                    "Please try again in a moment."
+                )
+                progress.emit(
+                    label="Could not reach the tutoring service", state="error"
+                )
+                ui.md(ai_response_for_history)
 
-        st.rerun()
+    # Said plainly, on the turn it applies to, rather than left for the student
+    # to infer from an answer that quietly ignored their screenshot.
+    attachment_notice = ""
+    if has_image:
+        attachment_notice = IMAGE_NOTICE
+    elif unreadable_names:
+        attachment_notice = "I could not read: " + ", ".join(unreadable_names)
+
+    practice_topic = (turn_result.get("practice_topic") or "") or chains.infer_topic_from_history(
+        st.session_state.chat_history + [HumanMessage(query_for_model)]
+    )
+    if practice_topic:
+        st.session_state.last_practice_topic = practice_topic
+
+    # append AI response to chat history
+    history_user_text = (display_user_text or user_query) + attachment_note
+    st.session_state.chat_history.append(HumanMessage(history_user_text))
+    st.session_state.chat_history.append(AIMessage(ai_response_for_history))
+    ai_index = len(st.session_state.chat_history) - 1
+
+    # Two different questions, previously answered by one variable.
+    #
+    # `abstained` is structural: a tool declined, and the text the student sees
+    # IS the refusal. That is what may show an orange badge and a recovery panel.
+    #
+    # `unresolved` is the analytics signal, and is deliberately looser -- a
+    # chain can refuse in prose without the tool abstaining. Using the loose
+    # version for the badge put "Not found in course materials" under genuine
+    # answers that merely contained the phrase "not covered", which the
+    # step_chain prompt explicitly instructs the model to say when a topic is
+    # out of scope.
+    unresolved = (
+        abstained
+        or "don't have enough information" in ai_response_for_history.lower()
+        or "not covered" in ai_response_for_history.lower()
+    )
+    event_payload = build_event_payload(
+        event_type="query",
+        session_id=st.session_state.session_id,
+        mode="unified",
+        response_mode=effective_response_mode,
+        query=user_query,
+        route_label=route_label,
+        learning_objective=learning_profile["learning_objective"],
+        learner_level=learning_profile["learner_level"],
+        resolved=not unresolved,
+        metadata={
+            "tools_used": tools_used,
+            "tool_calls": turn_result.get("tool_calls") or [],
+            "source_count": len(retrieval_debug),
+            "attachment_count": len(uploaded_files),
+            "attachment_names": [f.name for f in uploaded_files],
+            "attachment_text_chars": len(attachment_context),
+            # Logged so the weak/abstain rate can be tracked per route in the
+            # weekly report, and the thresholds retuned against real traffic.
+            "retrieval_quality": retrieval_quality,
+        },
+    )
+    interaction_id = str(store_event(collection, event_payload))
+
+    _set_meta(
+        ai_index,
+        # Sections drive rendering. The flat fields below stay for the
+        # single-answer fallback path and for the follow-up chips, which key
+        # off the LAST thing the student read.
+        sections=sections,
+        route=sections[-1]["route"] if sections else route_label,
+        sources=retrieval_debug,
+        abstained=abstained,
+        interaction_id=interaction_id,
+        diagnostics=diagnostics,
+        attachment_notice=attachment_notice,
+        retrieval_quality=retrieval_quality,
+        progress=progress.summary(),
+    )
+
+    # Recap card every few student turns. Stored on the message rather than
+    # written here: everything drawn after this point is wiped by the rerun.
+    st.session_state.student_turns += 1
+    if st.session_state.student_turns % RECAP_EVERY == 0:
+        try:
+            recap_text = all_chains["recap_chain"].invoke({
+                "chat_history": chains.format_chat_history(
+                    st.session_state.chat_history,
+                    max_messages=sidebar_settings["memory_window"],
+                )
+            })
+            _set_meta(ai_index, recap=f"**Where you are so far**\n\n{recap_text}")
+        except Exception:
+            pass
+
+    st.rerun()
+
 
 if __name__ == '__main__':
     main()

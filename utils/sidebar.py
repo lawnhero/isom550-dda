@@ -27,19 +27,28 @@ def diagnostics_unlocked():
 @st.dialog("How this works", width="large")
 def show_help_dialog():
     """Onboarding and policy text, on demand instead of pinned to the sidebar."""
-    st.subheader("How questions get answered")
+    st.subheader("Where answers come from")
     st.markdown(
-        "- Logistics questions (deadlines, grading, policy) are answered from the "
-        "syllabus and schedule\n"
-        "- Concept and assignment questions are answered from the class materials\n"
-        "- If routing fails, the tutor falls back to answering directly"
+        "Every answer carries a badge naming its source, so you can tell what is "
+        "grounded in course material and what is not.\n\n"
+        "- :blue-badge[Course schedule and policies] — the synced Canvas schedule "
+        "and the syllabus\n"
+        "- :blue-badge[Class recaps and assignment briefs] — announcements and "
+        "assignment pages written by your instructor\n"
+        "- :blue-badge[Class materials] — the indexed course content\n"
+        "- :violet-badge[JMP / Excel guidance] — general knowledge of the software, "
+        "grounded by this course's versions and conventions\n"
+        "- :gray-badge[General tutoring] — no course lookup happened\n\n"
+        "If the tutor cannot find something, it says so rather than guessing."
     )
     st.subheader("Getting better results")
     st.markdown(
         "- Include context: your dataset, your variables, and what you already tried\n"
         "- Build on previous answers instead of starting over\n"
         "- State your assumptions so the tutor can correct them early\n"
-        "- Ask for hints when you want guided practice rather than the answer"
+        "- Ask for hints when you want guided practice rather than the answer\n"
+        "- Attach a .txt, .csv, or .pdf and I will read it. I cannot read "
+        "screenshots yet, so paste output as text"
     )
     st.subheader("Good to know")
     st.markdown(
@@ -48,12 +57,26 @@ def show_help_dialog():
         "- Never include personal information in your questions"
     )
 
+# Everything a conversation accumulates. Clearing used to reset four of these
+# and leave the rest, so a "cleared" chat still carried the previous topic into
+# the next practice question and kept old feedback ids alive.
+_CONVERSATION_KEYS = (
+    "message_meta",
+    "pending_intent",
+    "last_practice_topic",
+    "feedback_submitted_ids",
+    "student_turns",
+    "clarify_topic_pills",
+    "clarify_subtopic_pills",
+    "starter_prompt_pills",
+)
+
+
 def clear_chat_history():
-    """Clear the chat history and reset conversation."""
+    """Clear the chat history and reset every conversation-scoped key."""
     st.session_state.chat_history = []
-    st.session_state.message_sources = {}
-    st.session_state.last_interaction_id = ""
-    st.session_state.pending_intent = None
+    for key in _CONVERSATION_KEYS:
+        st.session_state.pop(key, None)
     st.rerun()
 
 def save_chat_history():
@@ -89,7 +112,12 @@ def sidebar():
             "Response style",
             options=response_modes,
             key="response_mode",
-            help="Choose how much guidance the assistant should provide.",
+            help=(
+                "How much guidance you want on concepts and assignments. "
+                "Deadlines, policies, and JMP/Excel steps are always answered "
+                "directly — a hint about where the final exam is would just "
+                "waste your time."
+            ),
         )
         if response_mode is None:
             response_mode = "Teach me step-by-step"
@@ -97,24 +125,32 @@ def sidebar():
 
         # Instructor-only controls: hidden unless unlocked via ?debug= in the URL.
         if diagnostics_unlocked():
+            # Both need explicit keys. Passing a session-state value as `value`
+            # with no key makes Streamlit regenerate the widget id whenever that
+            # value changes, which re-creates the widget from its default and
+            # silently discards the click -- the diagnostics toggle could not be
+            # turned on at all.
+            st.session_state.setdefault("memory_window", DEFAULT_MEMORY_WINDOW)
+            st.session_state.setdefault("show_diagnostics", False)
             memory_window = st.slider(
                 "Recent message window",
                 min_value=4,
                 max_value=16,
-                value=st.session_state.get("memory_window", DEFAULT_MEMORY_WINDOW),
                 step=2,
+                key="memory_window",
                 help="Number of recent messages considered before using summary memory.",
             )
             show_diagnostics = st.toggle(
                 "Show agent diagnostics",
-                value=st.session_state.get("show_diagnostics", False),
+                key="show_diagnostics",
                 help="Display tool calls and retrieval debug info for development.",
             )
         else:
+            # No widgets here, so these have to be written back by hand.
             memory_window = DEFAULT_MEMORY_WINDOW
             show_diagnostics = False
-        st.session_state.memory_window = memory_window
-        st.session_state.show_diagnostics = show_diagnostics
+            st.session_state.memory_window = memory_window
+            st.session_state.show_diagnostics = show_diagnostics
 
         with st.container(horizontal=True):
             if st.button("Clear chat", icon=":material/delete:", width="stretch"):
