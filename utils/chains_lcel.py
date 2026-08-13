@@ -7,6 +7,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
 from pydantic import BaseModel, Field, validator
 
+from utils.retrieval import format_source_line
+
 output_parser = StrOutputParser()
 
 
@@ -29,8 +31,23 @@ pydantic_parser = PydanticOutputParser(pydantic_object=Label)
 
 
 def _format_docs(docs):
-    """Format retrieved documents into a single string block."""
-    return "\n\n".join([doc.page_content for doc in docs])
+    """Format retrieved documents into a single string block.
+
+    Each chunk is preceded by its provenance line when the index carries one,
+    which is what lets doc_chain honour "name the document you are drawing on
+    and include its link". Tier C stores a Canvas URL per chunk; before this,
+    metadata was dropped here and the model was asked to cite a link it had
+    never been shown.
+
+    Indexes with no title and no URL (Tier B) produce no line, so the concept
+    route's prompt is unchanged.
+    """
+    blocks = []
+    for doc in docs:
+        content = getattr(doc, "page_content", "") or ""
+        line = format_source_line(doc)
+        blocks.append(f"{line}\n{content}" if line else content)
+    return "\n\n".join(blocks)
 
 
 def format_chat_history(chat_history, max_messages: int = 8) -> str:
@@ -194,6 +211,37 @@ def infer_topic_from_history(chat_history, max_messages: int = 6) -> str:
         if objective in CURRICULUM_TOPICS:
             return objective
     return ""
+
+
+_QUESTION_STARTERS = (
+    "what", "when", "where", "why", "who", "which", "how",
+    "is", "are", "was", "were", "can", "could", "should", "would",
+    "do", "does", "did", "will", "am",
+)
+
+
+def is_new_question(text: str) -> bool:
+    """True when text reads as a fresh question rather than a topic answer.
+
+    The clarify flow used to coerce whatever the student typed into the pending
+    slot. A student who clicked "Practice question", then thought better of it
+    and typed "actually, when is A3 due?", got a practice question about
+    deadlines -- there was no way out of the clarify state except to answer it.
+
+    Kept deliberately literal. An exact curriculum topic or subtopic is matched
+    before this is ever consulted, so the only cost of a false positive is that
+    a wordy topic description gets explained instead of drilled, which is a far
+    smaller failure than the one it replaces.
+    """
+    text = (text or "").strip()
+    if not text:
+        return False
+    if text.endswith("?"):
+        return True
+    words = text.lower().split()
+    # Short phrases are how students name topics ("multicollinearity",
+    # "type I error"), so only a fuller sentence counts as a question.
+    return len(words) >= 4 and words[0].strip(",.") in _QUESTION_STARTERS
 
 
 def compose_quick_action_query(intent: str, topic: str = "", attempt_text: str = "") -> str:
