@@ -342,6 +342,27 @@ def render(schedule, facts, now=None, stale_after_days=None, verbose=False):
     return "\n".join(lines).strip()
 
 
+def course_date_span(schedule):
+    """(min_ymd, max_ymd) covered by the course, or (0, 0).
+
+    Used to resolve a bare "july 30" to a year. A student never types the year,
+    and the router has no calendar awareness by design, so the span is what
+    makes the resolution deterministic.
+    """
+    ymds = []
+    for a in (schedule or {}).get("announcements", []):
+        ymds.append(_ymd_int(a.get("posted_utc")))
+    for a in (schedule or {}).get("assignments", []):
+        ymds.append(_ymd_int(a.get("due_utc")))
+    ymds = [y for y in ymds if y]
+    return (min(ymds), max(ymds)) if ymds else (0, 0)
+
+
+def _ymd_int(iso):
+    dt = _parse(iso)
+    return int(dt.strftime("%Y%m%d")) if dt else 0
+
+
 def render_software_context(schedule, facts, limit=None):
     """Grounding for the software route: versions, conventions, walkthrough links.
 
@@ -403,9 +424,30 @@ def _cached_context(mtimes, day_key, verbose):
 
 
 @st.cache_data(show_spinner=False)
+def _cached_date_span(mtimes):
+    schedule, _ = load()
+    return course_date_span(schedule)
+
+
+@st.cache_data(show_spinner=False)
 def _cached_software_context(mtimes):
     schedule, facts = load()
     return render_software_context(schedule, facts)
+
+
+@st.cache_data(show_spinner=False)
+def _cached_links(mtimes):
+    """Canvas URL and instructor email, for UI escape hatches.
+
+    The prompt blocks already carry these, but the UI needs them as data: when
+    the tutor abstains, the student should get a real link and a real mailto,
+    not a sentence telling them to go find one.
+    """
+    schedule, facts = load()
+    return {
+        "canvas_url": ((schedule or {}).get("course") or {}).get("url", ""),
+        "instructor_email": ((facts or {}).get("instructor") or {}).get("email", ""),
+    }
 
 
 def get_course_context(verbose=False):
@@ -417,6 +459,16 @@ def get_course_context(verbose=False):
     )
 
 
+def get_course_date_span():
+    """(min_ymd, max_ymd) of the indexed course. Safe to call every rerun."""
+    return _cached_date_span(_mtimes())
+
+
 def get_software_context():
     """Grounding block for the software route. Safe to call every rerun."""
     return _cached_software_context(_mtimes())
+
+
+def get_course_links():
+    """{'canvas_url', 'instructor_email'} for student-facing fallbacks."""
+    return _cached_links(_mtimes())
