@@ -19,14 +19,14 @@ kb_db_path = 'data/chroma_db'
 
 @st.cache_resource
 # load the vectorized database
-def load_db(db_path=kb_db_path, embedding_model='text-embedding-3-small'):
+def load_db(db_path=kb_db_path, embedding_model='text-embedding-3-small', label=''):
     embeddings = OpenAIEmbeddings(model=embedding_model)
     db_loaded = Chroma(
         persist_directory=db_path,
         embedding_function=embeddings,
         client_settings=Settings(anonymized_telemetry=False)
     )
-    print("Database loaded")
+    print(f"Database loaded: {label}")
     return db_loaded
 
 def _get_mongodb_uri() -> str:
