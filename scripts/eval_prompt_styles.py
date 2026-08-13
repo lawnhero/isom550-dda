@@ -27,7 +27,7 @@ EVAL_CASES = [
 
 
 def run_eval(output_path: Path):
-    chain = chains.class_chain(llms.openai_gpt4o_mini)
+    chain = chains.class_chain(llms.openai_gpt56_luna)
     results = []
 
     for idx, case in enumerate(EVAL_CASES, start=1):

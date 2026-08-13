@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
@@ -9,7 +10,7 @@ from pydantic import Field
 load_dotenv()
 
 # Create a couple of Global Variables
-TEMPERATURE = 0.2
+TEMPERATURE = 0.1
 MAX_TOKENS = 1024
 
 
@@ -89,12 +90,15 @@ def create_model_with_fallback(
     return ModelWithFallback(primary=primary_model, fallback=fallback_model)
 
 
-openai_gpt4o_mini = ChatOpenAI(
+openai_gpt56_luna = ChatOpenAI(
     temperature=TEMPERATURE,
-    model="gpt-4o-mini",
-    verbose=False,
+    model="gpt-5.6-luna",
     max_tokens=300,
+    reasoning_effort="none",  # required for /v1/chat/completions + tool calling
 )
+
+# Back-compat alias for agent dispatch and haiku/deepseek fallbacks.
+openai_gpt4o_mini = openai_gpt56_luna
 
 openai_4o_mini_json = ChatOpenAI(
     temperature=TEMPERATURE,
@@ -117,6 +121,24 @@ grok_4_5 = ChatOpenAI(
     base_url="https://api.x.ai/v1",
 )
 
+# DeepSeek V4 via langchain-deepseek. Requires DEEPSEEK_API_KEY.
+_DEEPSEEK_THINKING = {"thinking": {"type": "enabled"}
+, "reasoning_effort": "low"}
+
+deepseek_v4_pro = ChatDeepSeek(
+    model="deepseek-v4-pro",
+    temperature=TEMPERATURE,
+    max_tokens=MAX_TOKENS,
+    extra_body={"thinking": {"type": "disabled"}},
+)
+
+deepseek_v4_flash = ChatDeepSeek(
+    model="deepseek-v4-flash",
+    temperature=TEMPERATURE,
+    max_tokens=MAX_TOKENS,
+    extra_body={"thinking": {"type": "disabled"}},
+)
+
 # Fallback tutoring model (Anthropic Sonnet 5).
 # Sonnet 5 rejects temperature/top_p/top_k; omit sampling params.
 # Disable adaptive thinking for lower latency/cost on fallback turns.
@@ -132,6 +154,17 @@ grok_with_sonnet_fallback = create_model_with_fallback(
     fallback_model=claude_sonnet_5,
 )
 
+# DeepSeek V4 Pro primary, grok fallback
+deepseekv4_with_grok_fallback = create_model_with_fallback(
+    primary_model=deepseek_v4_pro,
+    fallback_model=grok_4_5,
+)
+
+deepseek_flash_with_fallback = create_model_with_fallback(
+    primary_model=deepseek_v4_flash,
+    fallback_model=openai_gpt56_luna,
+)
+
 # Back-compat alias used by app.py / chain wiring
 claude_sonnet_with_fallback = grok_with_sonnet_fallback
 
@@ -143,5 +176,5 @@ claude_haiku = ChatAnthropic(
 
 claude_haiku_with_fallback = create_model_with_fallback(
     primary_model=claude_haiku,
-    fallback_model=openai_gpt4o_mini,
+    fallback_model=openai_gpt56_luna,
 )
