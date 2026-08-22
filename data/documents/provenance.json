@@ -1,0 +1,11 @@
+{
+  "built_at": "2026-08-22T03:59:43Z",
+  "bytes": 28918,
+  "course": "isom550",
+  "kind": "documents",
+  "model": "text-embedding-3-small",
+  "n_chunks": 18,
+  "sha256": "cfb0520debb3b496740f58eed0c42dba84598ca7c3eff4ac0891309e519d7852",
+  "source": "course_data/schedule.json",
+  "source_mtime": "2026-08-22T03:59:15Z"
+}

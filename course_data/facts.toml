@@ -10,8 +10,8 @@
 #
 # Review every field at the start of each term and bump `last_reviewed`.
 
-term          = "Summer 2026"
-last_reviewed = "2026-08-03"
+term          = "Fall 2026"
+last_reviewed = "2026-08-21"
 
 # How many days schedule.json may go un-synced before the tutor stops stating
 # specific due dates and tells students to check Canvas instead.
@@ -24,14 +24,14 @@ last_reviewed = "2026-08-03"
 #                spring break: 9-11 days) -> 12-14
 # Too tight is not free: a false trip silences every date answer for a week,
 # exactly when students are catching up after a break.
-stale_after_days = 7
+stale_after_days = 12
 
 
 [course]
 code       = "ISOM 550"
 title      = "Data & Decision Analytics"
-canvas_url = "https://canvas.emory.edu/courses/162137"
-meeting    = ""   # TODO: days, time, room
+canvas_url = "https://canvas.emory.edu/courses/165666"
+meeting    = "Typically M/W in GBS 204. See details in schedule."   
 
 
 [instructor]
@@ -39,17 +39,12 @@ name  = "Prof Wen Gu"
 title = "Associate Professor, ISOM area"
 email = "wenjun.gu@emory.edu"
 
-office_hours = "Wednesdays 1:00-2:00 PM. By appointment"  
+office_hours = "Wednesdays 1:15-2:15 PM. By appointment"  
 office       =  "GBS 415"
 
 
 [[tas]]
-name  = "Jeff Shibata"
-email = "jeff.shibata@emory.edu"
-
-[[tas]]
-name  = "Shiv Uppal"
-email = "shiv.uppal@emory.edu"
+TBD
 
 
 [grading]
@@ -60,15 +55,15 @@ email = "shiv.uppal@emory.edu"
 weights = """
 | Grading item                 | Weight |
 |------------------------------|--------|
-| Engagement and participation | 20%    |
-| Group case assignments       | 30%    |
+| Engagement and participation | 10%    |
+| Group case assignments       | 20%    |
 | Individual case assignments  | 20%    |
+| Midterm Exam	               | 20%    |
 | Individual final exam        | 30%    |
 """
 
 late_policy  = ""   # TODO — most-asked logistics question in most courses
 regrade      = ""   # TODO — how to request a regrade
-letter_scale = ""   # TODO — letter grade cutoffs
 
 
 [materials]
@@ -97,19 +92,7 @@ jmp       = "JMP 18 Student recommended; other versions may work"
 addins    = "TreePlan Excel add-in, for decision tree modeling"
 
 # The software route answers JMP/Excel questions from the model's own knowledge
-# rather than from retrieval -- it knows these tools well. What it CANNOT know is
-# where this course diverges from tool defaults, which is what this field is for.
-# These are the highest-value lines in this file: a student reading their own
-# output wrong because Excel and JMP disagree is a real, recurring failure.
-#
-# Your Class 5 (7/13) announcement already states one:
-#   "Excel and JMP use different baseline group ... Excel uses a particular
-#    category such as Cape Cod as baseline, while JMP uses the average of all
-#    categories as the baseline."
-#
-# Add that and any others as short bullet lines. Left empty rather than
-# transcribed for you, since deciding which conventions matter is a teaching
-# call, not a formatting one.
+# rather than from retrieval -- it knows these tools well. 
 conventions = ""
 
 
@@ -134,7 +117,10 @@ By the end of this course, you will be able to:
 # this app IS an AI tool, the sidebar tells students "use for learning, not
 # cheating", and students will ask this bot whether using this bot is allowed.
 [policies]
-ai_use             = ""   # TODO — is using this TA permitted? on what work?
+ai_use             = "See syllabus for details"   # TODO — is using this TA permitted? on what work?
 academic_integrity = ""   # TODO
-attendance         = ""   # TODO
-group_formation    = ""   # TODO — how groups are formed, can they change
+attendance         = """
+Attendance will be tracked daily using the Acadly app. Missing more than 15 minutes of a class session will result in being marked absent for that class. Inaccurately reporting your attendance constitutes a violation of Goizueta Honor Code. 
+Students are allowed up to 4 absences. having more than the allowable absences will result in one letter grade reduction. 
+"""
+group_formation    = "We will be following the core group for our class. " 
