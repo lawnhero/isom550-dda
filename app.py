@@ -1,5 +1,6 @@
 import time
 import uuid
+from pathlib import Path
 
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
@@ -8,7 +9,12 @@ from langchain_core.globals import set_verbose
 import utils.chains_lcel as chains
 import utils.ui as ui
 from utils.agent_graph import build_ta_agent, run_ta_turn
-from utils.attachments import IMAGE_NOTICE, extract_attachments
+from utils.attachments import (
+    IMAGE_LIMIT_NOTICE,
+    MAX_IMAGES,
+    describe_images,
+    extract_attachments,
+)
 from utils.course_context import (
     get_course_context,
     get_course_date_span,
@@ -47,10 +53,10 @@ set_verbose(False)
 # it since Tier A landed, and it had gone stale enough to contradict facts.toml
 # (it still claimed Spring 2026 office hours), so it is gone rather than dormant.
 contents_path = 'data/concepts'
-documents_path = 'data/tier_c'
+documents_path = 'data/documents'
 # Tier B: concept index from course_data/concepts.toml (scripts/build_concepts.py).
 contents_db = load_db(db_path=contents_path, label='concepts')
-# Tier C: class recaps + assignment briefs, built by scripts/build_tier_c.py.
+# Tier C: class recaps + assignment briefs, built by scripts/build_documents.py.
 # Missing until that runs; searches then return nothing and the tool abstains.
 documents_db = load_db(db_path=documents_path, label='assignments and recaps')
 
@@ -63,7 +69,15 @@ main_tutor = llms.deepseekv4_with_grok_fallback
 claude_haiku = llms.deepseek_v4_flash
 agent_llm = llms.openai_gpt56_luna
 
-all_chains = chains.get_all_chains(main_tutor, claude_haiku)
+all_chains = chains.get_all_chains(
+    main_tutor,
+    claude_haiku,
+    # Screenshot turns are pinned here regardless of which model is
+    # tutoring: reading a regression table out of a PNG is a different
+    # capability from writing the explanation, and it should not change
+    # every time the primary tutor is swapped.
+    vision_llm=llms.openai_gpt56_luna_vision,
+)
 class_chain = all_chains['class_chain']
 
 TA_AVATAR = ":material/school:"
@@ -379,10 +393,7 @@ def main():
     st.title("ISOM 550 Virtual TA")
     sidebar_settings = sidebar()
     initial_text = (
-        "Hi, I'm Dayton, the TA for ISOM 550 Data and Decision Analytics.\n\n"
-        "I can look up deadlines and course policy, explain what an assignment "
-        "asks for, walk you through JMP or Excel, and quiz you on any topic. "
-        "Ask me anything, or start with one of the suggestions below."
+        "Hi, I'm Dayton, your virtual TA."
     )
 
     # Initialize chat history in session state
@@ -480,13 +491,13 @@ def main():
                     key_prefix="follow_up",
                 )
 
-        chat_placeholder = "Ask a question, or attach your work..."
+        chat_placeholder = "Ask a question, or attach a screenshot of your work..."
         if pending and pending.get("needs") == "topic":
             chat_placeholder = "Pick a topic above, or type one..."
         elif pending and pending.get("needs") == "subtopic":
             chat_placeholder = "Pick a subtopic above, or type one..."
         elif pending and pending.get("needs") == "attempt":
-            chat_placeholder = "Paste your attempt, or attach a file..."
+            chat_placeholder = "Paste your attempt, or attach a screenshot..."
 
         raw_input = st.chat_input(
             chat_placeholder,
@@ -559,13 +570,19 @@ def main():
     # ----------------------------------------------------------------------
     # Run the turn
     # ----------------------------------------------------------------------
-    attachment_context, unreadable_names, has_image = extract_attachments(uploaded_files)
+    attachment_context, unreadable_names, images = extract_attachments(uploaded_files)
     attachment_note = ""
-    if uploaded_files:
-        names = ", ".join(f.name for f in uploaded_files)
-        attachment_note = f"\n\n[Student attached: {names}]"
+    readable_names = [
+        f.name for f in uploaded_files if f.name not in set(unreadable_names)
+    ]
+    if readable_names:
+        attachment_note = f"\n\n[Student attached: {', '.join(readable_names)}]"
 
-    query_for_model = f"{user_query}{attachment_note}{attachment_context}"
+    # The router reads this line instead of the pixels; the images themselves
+    # go round the agent loop and straight to the chain (see build_ta_agent).
+    query_for_model = (
+        f"{user_query}{attachment_note}{describe_images(images)}{attachment_context}"
+    )
     learning_profile = chains.build_learning_profile(
         query=query_for_model,
         response_mode=sidebar_settings["response_mode"],
@@ -622,6 +639,8 @@ def main():
                 software_context=get_software_context(),
                 course_span=get_course_date_span(),
                 progress=progress,
+                memory_window=sidebar_settings["memory_window"],
+                images=images,
             )
             # Routing + hybrid retrieval happen inside run_ta_turn (agent +
             # tools), and report their own progress as they go.
@@ -633,6 +652,8 @@ def main():
                 memory_window=sidebar_settings["memory_window"],
                 progress=progress,
             )
+
+            print('-----turn_result: ', turn_result['tool_calls'])
 
             route_label = turn_result["route_label"]
             answerable = turn_result.get("answerable_steps") or []
@@ -701,6 +722,7 @@ def main():
                             query=query_for_model,
                             chat_history=st.session_state.chat_history,
                             response_mode=effective_response_mode,
+                            memory_window=sidebar_settings["memory_window"],
                         )
                     ),
                     progress=progress,
@@ -765,17 +787,14 @@ def main():
             }
             try:
                 ai_response_for_history = _stream_answer(
-                    class_chain.stream({
-                        'query': query_for_model,
-                        'chat_history': chains.format_chat_history(
-                            st.session_state.chat_history,
-                            max_messages=sidebar_settings["memory_window"],
-                        ),
-                        "response_mode": effective_response_mode,
-                        "learning_objective": learning_profile["learning_objective"],
-                        "learner_level": learning_profile["learner_level"],
-                        "attempt_check": learning_profile["attempt_check"],
-                    }),
+                    class_chain.stream(
+                        chains.build_chain_payload(
+                            query=query_for_model,
+                            chat_history=st.session_state.chat_history,
+                            response_mode=effective_response_mode,
+                            memory_window=sidebar_settings["memory_window"],
+                        )
+                    ),
                     progress=progress,
                     label="Answering without course materials",
                 )
@@ -803,10 +822,10 @@ def main():
     # Said plainly, on the turn it applies to, rather than left for the student
     # to infer from an answer that quietly ignored their screenshot.
     attachment_notice = ""
-    if has_image:
-        attachment_notice = IMAGE_NOTICE
-    elif unreadable_names:
+    if unreadable_names:
         attachment_notice = "I could not read: " + ", ".join(unreadable_names)
+        if len(images) >= MAX_IMAGES:
+            attachment_notice += ". " + IMAGE_LIMIT_NOTICE
 
     practice_topic = (turn_result.get("practice_topic") or "") or chains.infer_topic_from_history(
         st.session_state.chat_history + [HumanMessage(query_for_model)]
@@ -829,7 +848,7 @@ def main():
     # chain can refuse in prose without the tool abstaining. Using the loose
     # version for the badge put "Not found in course materials" under genuine
     # answers that merely contained the phrase "not covered", which the
-    # step_chain prompt explicitly instructs the model to say when a topic is
+    # concept_chain prompt explicitly instructs the model to say when a topic is
     # out of scope.
     unresolved = (
         abstained
@@ -853,6 +872,9 @@ def main():
             "attachment_count": len(uploaded_files),
             "attachment_names": [f.name for f in uploaded_files],
             "attachment_text_chars": len(attachment_context),
+            # Count only. The bytes are the student's own work and have no
+            # business in the analytics store.
+            "attachment_image_count": len(images),
             # Logged so the weak/abstain rate can be tracked per route in the
             # weekly report, and the thresholds retuned against real traffic.
             "retrieval_quality": retrieval_quality,

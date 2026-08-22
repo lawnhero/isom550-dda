@@ -23,10 +23,16 @@ from utils.retrieval import (
 
 @dataclass
 class StreamSpec:
-    """Payload for streaming a tutoring chain in the UI after tool prep."""
+    """Payload for streaming a tutoring chain in the UI after tool prep.
+
+    `images` is the side channel for screenshots. They are already inside
+    `payload` for the chain to render, and are repeated here so the turn can be
+    inspected (and logged, by count) without unpacking a chain payload.
+    """
 
     chain_key: str
     payload: Dict[str, Any]
+    images: List[Dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -173,7 +179,7 @@ def _filter_only_question(doc_type: str, days_back: int, on_date: str, date_span
         when = ""
 
     return (
-        f"Summarise what these {kind}{when} covered. List each one by name and "
+        f"Summarise what these {kind}{when} covered. List every one by name and "
         "say briefly what it was about."
     )
 
@@ -229,6 +235,27 @@ def _describe_retrieval(
     )
 
 
+def _stream_spec(
+    chain_key: str,
+    payload: Dict[str, Any],
+    images: Optional[List[Dict[str, str]]] = None,
+) -> StreamSpec:
+    """Point a step at the plain chain, or at its vision build when there are
+    screenshots to show it.
+
+    The `_vision` suffix is the whole routing rule -- see
+    `chains_lcel.get_all_chains`. A chain without one simply never receives an
+    image, which is why this is safe to call from any tool.
+    """
+    if not images:
+        return StreamSpec(chain_key=chain_key, payload=payload)
+    return StreamSpec(
+        chain_key=f"{chain_key}_vision",
+        payload={**payload, "images": images},
+        images=list(images),
+    )
+
+
 def _prepare_rag_tool(
     *,
     query: str,
@@ -240,6 +267,8 @@ def _prepare_rag_tool(
     artifacts: TurnArtifacts,
     progress: ProgressReporter,
     module: str = "",
+    memory_window: int = chains.DEFAULT_MEMORY_WINDOW,
+    images: Optional[List[Dict[str, str]]] = None,
 ) -> ToolExecutionResult:
     step = artifacts.new_step(tool_name)
     found: RetrievalResult = search_concepts(
@@ -277,16 +306,18 @@ def _prepare_rag_tool(
         chat_history=chat_history,
         response_mode=response_mode,
         context=chains._format_docs(found.docs),
+        memory_window=memory_window,
     )
     sources = _extract_source_labels(found.docs)
     practice_topic = chains.infer_curriculum_topic(query)
     step.sources = sources
     step.practice_topic = practice_topic
-    step.stream_spec = StreamSpec(chain_key=chain_key, payload=payload)
+    step.stream_spec = _stream_spec(chain_key, payload, images)
     step.retrieval_quality = found.quality
     step.trace = {
-        "tool": tool_name, "chain": chain_key, "retrieval": True,
+        "tool": tool_name, "chain": step.stream_spec.chain_key, "retrieval": True,
         "hits": len(found.docs), "topic": practice_topic or "(none)",
+        "images": len(images or []),
         "module": (module or "").strip() or "(none)",
         **found.as_trace(),
     }
@@ -315,6 +346,8 @@ def build_ta_tools(
     software_context: str = "",
     course_span=None,
     progress: Optional[ProgressReporter] = None,
+    memory_window: int = chains.DEFAULT_MEMORY_WINDOW,
+    images: Optional[List[Dict[str, str]]] = None,
 ):
     """Build agent tools that prepare retrieval/payloads for streamed LCEL answers.
 
@@ -325,9 +358,23 @@ def build_ta_tools(
     cover the retrieval that follows.
     """
     progress = progress or ProgressReporter()
+    # Screenshots reach the chains through the closure, not through tool
+    # arguments. The router never sees the pixels -- it gets a one-line marker
+    # in the query (see attachments.describe_images) and picks a route from
+    # that -- so the agent loop is not paying image tokens on every hop, and a
+    # model cannot mangle a base64 blob while writing a tool call.
+    images = list(images or [])
+
+    def _history_text() -> str:
+        return chains.format_chat_history(chat_history, max_messages=memory_window)
 
     def answer_course_facts(query: str) -> str:
-        """Answer questions about dates, people, grading, and what class has covered."""
+        """Answer questions about dates, people, grading, and what class has covered.
+
+        Args:
+            query: The student's question. The Tier A snapshot is read whole, so
+                this is the question itself rather than search terms.
+        """
         step = artifacts.new_step("answer_course_facts")
 
         if not (course_context or "").strip():
@@ -358,7 +405,7 @@ def build_ta_tools(
         # No retrieval: the Tier A block already is the context.
         payload = {
             "course_context": course_context,
-            "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+            "chat_history": _history_text(),
             "query": query,
         }
         step.stream_spec = StreamSpec(chain_key="facts_chain", payload=payload)
@@ -376,7 +423,12 @@ def build_ta_tools(
         )
 
     def answer_software(query: str) -> str:
-        """Help operate JMP or Excel. Answers from model knowledge, no retrieval."""
+        """Help operate JMP or Excel. Answers from model knowledge, no retrieval.
+
+        Args:
+            query: What the student is trying to do in the tool, including the
+                task and any output they are looking at.
+        """
         step = artifacts.new_step("answer_software")
         progress.emit(
             detail="Working out the JMP / Excel steps from this course's conventions"
@@ -385,17 +437,18 @@ def build_ta_tools(
         # Deliberately no vector search. Retrieval here was actively harmful:
         # a JMP question used to land in answer_concept and get four unrelated
         # stats Q&A rows injected as authoritative "course context".
-        step.stream_spec = StreamSpec(
-            chain_key="software_chain",
-            payload={
+        step.stream_spec = _stream_spec(
+            "software_chain",
+            {
                 "software_context": software_context or "",
-                "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+                "chat_history": _history_text(),
                 "query": query,
             },
         )
         step.trace = {
-            "tool": "answer_software", "chain": "software_chain",
+            "tool": "answer_software", "chain": step.stream_spec.chain_key,
             "retrieval": False, "context_chars": len(software_context or ""),
+            "images": len(images),
         }
         return _serialize_tool_result(
             ToolExecutionResult(
@@ -415,20 +468,19 @@ def build_ta_tools(
     ) -> str:
         """Look up assignment instructions or what a class covered.
 
-        query:     the topic to search for. MAY BE EMPTY when the question is
-                   purely about a date range ("what did we cover last week") --
-                   the filter alone then selects the documents.
-        doc_type: "assignment", "announcement", or "" for both.
-        days_back: restrict to the last N days ("this week" -> 7). 0 = no limit.
-        on_date:   a date the student named, copied verbatim from their question
-                   ("july 30", "7/30"). No year needed.
-        date_span: how much around on_date to cover -- "day" (default), "week"
-                   for "the week of July 30", or "month" for "in July".
-
-        `query` used to be required, and the router routinely omitted it on
-        exactly the date-range questions this tool exists for -- pydantic
-        rejected the call, the tool never ran, and half the student's question
-        vanished with no error they could see.
+        Args:
+            query: The topic to search for. MAY BE EMPTY when the question is
+                purely about a date range ("what did we cover last week") -- the
+                filter alone then selects the documents.
+            doc_type: "assignment" for assignment briefs, "announcement" for
+                class recaps, or "" for both.
+            days_back: Restrict to the last N days ("this week" -> 7, "last two
+                weeks" -> 14). 0 = no limit.
+            on_date: A date the student named, copied verbatim from their
+                question ("july 30", "7/30"). No year needed.
+            date_span: Window around on_date -- "day" for a single named day
+                ("on July 21"); "week" for a window ("around July 21", "the week
+                of July 30", "that week"); "month" for a whole month ("in July").
         """
         step = artifacts.new_step("answer_course_documents")
 
@@ -568,7 +620,7 @@ def build_ta_tools(
             chain_key="doc_chain",
             payload={
                 "context": chains._format_docs(found.docs),
-                "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+                "chat_history": _history_text(),
                 "response_mode": response_mode,
                 "query": (query or "").strip() or _filter_only_question(
                     doc_type, days_back, on_date, date_span
@@ -589,22 +641,38 @@ def build_ta_tools(
         )
 
     def answer_concept(query: str, module: str = "") -> str:
-        """Explain analytics concepts, assignment help, coding, or interpretation using class materials."""
+        """Explain analytics concepts, interpretation, and what a statistic means.
+
+        Args:
+            query: The concept question the student is asking.
+            module: ONE module id from the Tier B module list in your
+                instructions (e.g. simple-regression, inference,
+                sensitivity-analysis). Narrows the search to that module.
+        """
         result = _prepare_rag_tool(
             query=query,
             vector_db=contents_db,
-            chain_key="step_chain",
+            chain_key="concept_chain",
             chat_history=chat_history,
             response_mode=response_mode,
             tool_name="answer_concept",
             artifacts=artifacts,
             progress=progress,
             module=module,
+            memory_window=memory_window,
+            images=images,
         )
         return _serialize_tool_result(result)
 
     def generate_practice(topic: str, difficulty: str = "same") -> str:
-        """Generate one MBA-style practice question for a topic. difficulty: same or harder."""
+        """Generate one MBA-style practice question for a topic.
+
+        Args:
+            topic: What to drill. Leave empty to reuse the topic already under
+                discussion in the conversation.
+            difficulty: "same" (default), or "harder" for a tougher variant of
+                the topic the student just practised.
+        """
         topic = (topic or "").strip() or chains.infer_topic_from_history(chat_history) or "General analytics"
         difficulty = (difficulty or "same").strip().lower()
         if difficulty not in {"same", "harder"}:
@@ -615,7 +683,7 @@ def build_ta_tools(
             "difficulty": difficulty,
             "learning_objective": chains.infer_learning_objective(topic),
             "learner_level": chains.infer_learner_level(chat_history),
-            "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+            "chat_history": _history_text(),
         }
         step = artifacts.new_step("generate_practice")
         progress.emit(
@@ -638,9 +706,28 @@ def build_ta_tools(
         return _serialize_tool_result(result)
 
     def check_attempt(attempt_text: str, topic: str = "") -> str:
-        """Check a student's attempt and return rubric-style feedback."""
+        """Check a student's attempt and return rubric-style feedback.
+
+        Args:
+            attempt_text: The student's work, copied in full and verbatim.
+                Include the contents of any "--- Attached file: ... ---" block
+                in their message; that block IS the attempt. If the work is in
+                an attached screenshot, pass whatever the student typed (or
+                leave this empty) -- the image is shown to the chain either
+                way, so do not describe or transcribe it here.
+            topic: What the attempt is about. Leave empty to infer it from the
+                conversation.
+        """
         attempt_text = (attempt_text or "").strip()
         step = artifacts.new_step("check_attempt")
+        if not attempt_text and images:
+            # An uploaded screenshot with no typed words is the single most
+            # common way a student says "check my work". Asking them to paste
+            # an attempt we can already see would be absurd.
+            attempt_text = (
+                "(The student's work is in the attached screenshot, "
+                "not in text.)"
+            )
         if not attempt_text:
             answer = "Please paste your attempt so I can check it."
             step.static_answer = answer
@@ -659,16 +746,17 @@ def build_ta_tools(
             "attempt_text": attempt_text,
             "learning_objective": chains.infer_learning_objective(topic),
             "learner_level": chains.infer_learner_level(chat_history),
-            "chat_history": chains.format_chat_history(chat_history, max_messages=8),
+            "chat_history": _history_text(),
         }
         progress.emit(
             detail=f"Reviewing your attempt on {topic} ({len(attempt_text):,} chars)"
         )
         step.practice_topic = topic
-        step.stream_spec = StreamSpec(chain_key="check_chain", payload=payload)
+        step.stream_spec = _stream_spec("check_chain", payload, images)
         step.trace = {
-            "tool": "check_attempt", "chain": "check_chain",
+            "tool": "check_attempt", "chain": step.stream_spec.chain_key,
             "retrieval": False, "topic": topic,
+            "images": len(images),
         }
 
         result = ToolExecutionResult(
@@ -690,6 +778,7 @@ def build_ta_tools(
                 "and which topics have been covered in class so far. Use this whenever "
                 "the question is about a course fact rather than an idea."
             ),
+            parse_docstring=True,
         ),
         StructuredTool.from_function(
             func=answer_course_documents,
@@ -707,6 +796,7 @@ def build_ta_tools(
                 "to 'week' for 'the week of July 30' or 'month' for 'in July'. "
                 "Do NOT use this for due dates or grading weights -- use answer_course_facts."
             ),
+            parse_docstring=True,
         ),
         StructuredTool.from_function(
             func=answer_software,
@@ -718,6 +808,7 @@ def build_ta_tools(
                 "Use answer_concept instead when the question is about what a "
                 "statistic MEANS rather than how to produce it."
             ),
+            parse_docstring=True,
         ),
         StructuredTool.from_function(
             func=answer_concept,
@@ -730,16 +821,19 @@ def build_ta_tools(
                 "Do NOT use for assignment task lists or class recaps — use "
                 "answer_course_documents. Do NOT use for JMP/Excel menus — use answer_software."
             ),
+            parse_docstring=True,
         ),
         StructuredTool.from_function(
             func=generate_practice,
             name="generate_practice",
             description="Generate one practice question for a topic. Use difficulty 'harder' for a tougher variant.",
+            parse_docstring=True,
         ),
         StructuredTool.from_function(
             func=check_attempt,
             name="check_attempt",
             description="Check a student's attempt and provide rubric-style feedback.",
+            parse_docstring=True,
         ),
     ]
 

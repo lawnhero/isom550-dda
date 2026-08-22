@@ -23,7 +23,7 @@ Two modes:
 Usage:
     python scripts/calibrate_retrieval.py --probe
     python scripts/calibrate_retrieval.py --replay --sample 250
-    python scripts/calibrate_retrieval.py --probe --db data/tier_c
+    python scripts/calibrate_retrieval.py --probe --db data/documents
 """
 
 import argparse

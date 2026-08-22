@@ -29,7 +29,7 @@ chain in `app.py`, not from the agent.
 | Course facts | `answer_course_facts` | `facts_chain` (haiku) | Tier A: `schedule.json` + `facts.toml`, rendered in Python | none — the block *is* the context |
 | Course documents | `answer_course_documents` | `doc_chain` (main) | Tier C: class recaps + assignment briefs | hybrid + `ymd` range filter |
 | Software | `answer_software` | `software_chain` (haiku) | model knowledge + course versions/conventions | none, deliberately |
-| Concept | `answer_concept` | `step_chain` (main) | Tier B: class content Q&A | hybrid |
+| Concept | `answer_concept` | `concept_chain` (main) | Tier B: class content Q&A | hybrid |
 | Practice | `generate_practice` | `practice_chain` (main) | none | none |
 | Check | `check_attempt` | `check_chain` (main) | none | none |
 | Direct | *(no tool)* | — | none | none |
@@ -374,7 +374,7 @@ speculative document search alongside it came back empty. Abstention now
 describes the answer the student sees: a prepared stream settles it.
 
 **The badge used a substring match.** `unresolved` was `abstained or "not
-covered" in answer.lower()` — and `step_chain`'s prompt explicitly instructs the
+covered" in answer.lower()` — and `concept_chain`'s prompt explicitly instructs the
 model to say "not covered in class materials" when a topic is out of scope. The
 loose signal is still logged for analytics; the badge now uses the structural
 flag only.

@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime
 
 # Recent-message window is an internal tuning knob, not a student control.
+# Keep in sync with chains_lcel.DEFAULT_MEMORY_WINDOW.
 DEFAULT_MEMORY_WINDOW = 8
 
 def diagnostics_unlocked():

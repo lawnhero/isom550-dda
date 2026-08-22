@@ -23,6 +23,7 @@ The rendering functions are pure and take `now` explicitly so they can be
 tested at any point in the term. Only get_course_context() touches Streamlit.
 """
 
+import hashlib
 import json
 import re
 import tomllib
@@ -35,6 +36,14 @@ import streamlit as st
 
 SCHEDULE_PATH = Path("course_data/schedule.json")
 FACTS_PATH = Path("course_data/facts.toml")
+
+# The class-document index is BUILT from schedule.json, not read from it. Tier A is read
+# live and is current the moment a sync writes; the document index does not move
+# until it is rebuilt. Syncing without rebuilding therefore leaves the tutor stating this
+# week's due dates while quoting last week's announcements, with nothing to say
+# so. The build writes this sidecar; comparing it to the snapshot is how that
+# silence gets broken.
+DOCUMENTS_PROVENANCE_PATH = Path("data/documents/provenance.json")
 
 # Fallback only. The real value comes from `stale_after_days` in facts.toml,
 # because the right number depends on the term: at 2 classes/week the normal
@@ -54,7 +63,7 @@ SOFTWARE_PAGE_RE = re.compile(r"jmp|excel|treeplan|mysql|install|software", re.I
 class Advisory:
     """A reason to distrust the data, plus what the tutor should do about it."""
 
-    level: str  # "conflict" | "ended" | "drift"
+    level: str  # "conflict" | "ended" | "drift" | "index"
     message: str
     instruction: str
 
@@ -68,6 +77,12 @@ def _parse(iso):
 def _fmt_day(dt):
     """'Mon Aug 3, 2026' -- platform-independent (no %-d)."""
     return f"{dt.strftime('%a %b')} {dt.day}, {dt.year}"
+
+
+def _with_url(line: str, item: dict) -> str:
+    """Append a Canvas URL when the snapshot carried one."""
+    url = str((item or {}).get("url") or "").strip()
+    return f"{line} — {url}" if url else line
 
 
 def load(schedule_path=SCHEDULE_PATH, facts_path=FACTS_PATH):
@@ -127,6 +142,7 @@ def advisories(schedule, facts, now=None, stale_after_days=None):
       conflict -> the two files disagree; no date can be trusted
       ended    -> the term is over; dates are correct but historical
       drift    -> mid-term with an old snapshot; dates are probably still fine
+      index    -> Tier A is fresh but the document index was not rebuilt
     """
     now = now or datetime.now(timezone.utc)
     stale_after_days = _stale_limit(facts, stale_after_days)
@@ -188,7 +204,73 @@ def advisories(schedule, facts, now=None, stale_after_days=None):
                     "the student to confirm on Canvas if the exact date matters.",
                 )
             )
+
+    # 4. INDEX. Distinct from `drift`: the snapshot can be current while the
+    #    index built from it is not. Tier A answers stay correct, so nothing
+    #    else here fires, but answer_course_documents is quietly serving the
+    #    previous sync's announcements.
+    out.extend(_index_advisories(schedule))
+
     return out
+
+
+def _documents_provenance(path=DOCUMENTS_PROVENANCE_PATH):
+    """The class-document index build stamp, or None when absent/unreadable."""
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _index_advisories(schedule, schedule_path=SCHEDULE_PATH,
+                      provenance_path=DOCUMENTS_PROVENANCE_PATH):
+    """Warn when the document index is older than the snapshot it came from.
+
+    Compared on content hash, not timestamps. mtime moves on any checkout or
+    rebase without the content changing, and `generated_at` moves on every sync
+    even when nothing about the course did -- either would cry wolf until the
+    warning stopped being read. The hash changes exactly when the indexed
+    content would differ.
+
+    Cost is one sha256 of a ~50 KB file, and the only caller is cached on file
+    mtime, so this runs when the file changes rather than on every turn.
+    """
+    if not schedule:
+        return []
+    prov = _documents_provenance(provenance_path)
+    if not prov:
+        # No stamp at all. Either the index predates stamping or it was never
+        # built. Both mean the document route cannot be vouched for, but
+        # neither is worth silencing the tutor over -- Tier A is unaffected.
+        return [
+            Advisory(
+                "index",
+                "The class-document index carries no build stamp, so it cannot be "
+                "checked against the current schedule.",
+                "Answers drawn from class recaps and assignment briefs may be out "
+                "of date; say so if one looks inconsistent with the dates above.",
+            )
+        ]
+
+    try:
+        current = hashlib.sha256(Path(schedule_path).read_bytes()).hexdigest()
+    except OSError:
+        return []
+
+    built_from = prov.get("sha256")
+    if built_from and built_from != current:
+        return [
+            Advisory(
+                "index",
+                f"The class-document index was built from an older schedule "
+                f"(index built {prov.get('built_at', 'at an unknown time')}; the "
+                f"snapshot has changed since).",
+                "Course facts and due dates above are current. Answers drawn from "
+                "class recaps and assignment briefs are NOT -- prefer the facts "
+                "above when the two disagree, and point the student to Canvas.",
+            )
+        ]
+    return []
 
 
 def _render_facts(facts, lines, verbose=False):
@@ -295,8 +377,11 @@ def render(schedule, facts, now=None, stale_after_days=None, verbose=False):
         lines.append("UPCOMING DEADLINES")
         if upcoming:
             for a in upcoming:
-                lines.append(f"  - {a['name']} — due {a['due_local']} — "
-                             f"{a.get('points') or 0:g} pts ({a.get('kind','assignment')})")
+                lines.append(_with_url(
+                    f"  - {a['name']} — due {a['due_local']} — "
+                    f"{a.get('points') or 0:g} pts ({a.get('kind','assignment')})",
+                    a,
+                ))
         else:
             lines.append("  (none remaining)")
 
@@ -304,13 +389,19 @@ def render(schedule, facts, now=None, stale_after_days=None, verbose=False):
             lines.append("")
             lines.append("PAST DEADLINES")
             for a in past:
-                lines.append(f"  - {a['name']} — was due {a['due_local']} — "
-                             f"{a.get('points') or 0:g} pts")
+                lines.append(_with_url(
+                    f"  - {a['name']} — was due {a['due_local']} — "
+                    f"{a.get('points') or 0:g} pts",
+                    a,
+                ))
         if undated:
             lines.append("")
             lines.append("NO DUE DATE SET")
             for a in undated:
-                lines.append(f"  - {a['name']} — {a.get('points') or 0:g} pts")
+                lines.append(_with_url(
+                    f"  - {a['name']} — {a.get('points') or 0:g} pts",
+                    a,
+                ))
 
         # Only announcements that have actually gone out by `now`. The sync
         # already drops scheduled-but-unposted ones, but render(now=X) must
@@ -330,14 +421,14 @@ def render(schedule, facts, now=None, stale_after_days=None, verbose=False):
             # date is more accurate than posted_at (recaps are often posted the
             # next morning). Show the title alone rather than two dates.
             for a in sorted(recaps, key=lambda x: x.get("posted_utc") or ""):
-                lines.append(f"  - {a['title'].strip()}")
+                lines.append(_with_url(f"  - {a['title'].strip()}", a))
         if notices:
             lines.append("")
             lines.append("RECENT COURSE NOTICES")
             for a in notices[:5]:
                 day = _parse(a.get("posted_utc"))
                 stamp = _fmt_day(day.astimezone(tz)) if day else ""
-                lines.append(f"  - {stamp}: {a['title'].strip()}")
+                lines.append(_with_url(f"  - {stamp}: {a['title'].strip()}", a))
 
     return "\n".join(lines).strip()
 

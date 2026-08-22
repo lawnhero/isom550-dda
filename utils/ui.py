@@ -379,7 +379,7 @@ QUICK_ACTIONS = [
 # the first click teaches the student what this tutor actually covers.
 STARTER_PROMPTS = [
     "When is the midterm exam?",
-    "What do I need to do for Assignment 3?",
+    "What do I need to do for Individual Eastville Part 1 assignment?",
     "What did we cover in class recently?",
     "How do I run a regression in JMP?",
     "What does an R-squared of 0.62 mean?",

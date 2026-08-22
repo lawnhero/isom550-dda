@@ -1,5 +1,6 @@
 import math
 import re
+import traceback
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Dict, List
@@ -290,7 +291,7 @@ def _select_diverse(ranked: List, top_k: int) -> List:
     A capped document contributes its best-SCORING parts, which need not be
     contiguous -- parts 1 and 3 of 3 is a normal result. That is preferred over
     forcing contiguity: the parts that matched are the parts worth sending, and
-    build_tier_c writes the part number into every chunk header, so the gap is
+    build_documents writes the part number into every chunk header, so the gap is
     visible to the model rather than papered over.
     """
     groups: Dict[Any, List] = {}
@@ -622,6 +623,41 @@ def build_document_filter(
     return clauses[0] if len(clauses) == 1 else {"$and": clauses}
 
 
+def _chroma_persist(vector_db):
+    return getattr(vector_db, "_persist_directory", None)
+
+
+def _chroma_count(vector_db):
+    try:
+        return vector_db._collection.count()
+    except Exception as exc:
+        return f"unreadable ({exc})"
+
+
+def _reopen_chroma(vector_db):
+    persist = _chroma_persist(vector_db)
+    if not persist:
+        return None
+    from utils.utils import open_chroma
+
+    return open_chroma(
+        persist,
+        embedding_function=getattr(vector_db, "_embedding_function", None),
+    )
+
+
+def _with_chroma_retry(vector_db, fn, *, label: str):
+    try:
+        return fn(vector_db)
+    except Exception:
+        print(f"[{label}] query failed:\n{traceback.format_exc()}")
+        fresh = _reopen_chroma(vector_db)
+        if fresh is None:
+            raise
+        print(f"[{label}] retrying on a new client at {_chroma_persist(vector_db)}")
+        return fn(fresh)
+
+
 def fetch_by_filter(vector_db, where, top_k: int = 8) -> RetrievalResult:
     """Fetch documents by metadata filter alone, newest first.
 
@@ -645,6 +681,7 @@ def fetch_by_filter(vector_db, where, top_k: int = 8) -> RetrievalResult:
         # chunks, so ask for more than the ranked path would.
         got = vector_db.get(where=where, limit=max(top_k, 8) * 3)
     except Exception:
+        print("[fetch_by_filter] query failed:\n" + traceback.format_exc())
         return RetrievalResult(mode="filter")
 
     texts = got.get("documents") or []
@@ -694,17 +731,24 @@ def search_concepts(
             "top_k": top_k,
             "where": where,
             "in_conversation": in_conversation,
+            "persist": _chroma_persist(vector_db),
+            "n_chunks": _chroma_count(vector_db),
         },
     )
     try:
-        return hybrid_retrieve(
+        return _with_chroma_retry(
             vector_db,
-            query,
-            top_k=top_k,
-            where=where,
-            in_conversation=in_conversation,
+            lambda db: hybrid_retrieve(
+                db,
+                query,
+                top_k=top_k,
+                where=where,
+                in_conversation=in_conversation,
+            ),
+            label="search_concepts",
         )
     except Exception:
+        print("[search_concepts] giving up:\n" + traceback.format_exc())
         return assess([], [], query, in_conversation=in_conversation)
 
 
@@ -743,19 +787,38 @@ def search_documents(
             "where": where,
             "date_filtered": date_filtered,
             "in_conversation": in_conversation,
+            "persist": _chroma_persist(vector_db),
+            "n_chunks": _chroma_count(vector_db),
         },
     )
+    if _chroma_count(vector_db) == 0:
+        fresh = _reopen_chroma(vector_db)
+        if fresh is not None and _chroma_count(fresh) != 0:
+            print(
+                "[search_documents] cached client was empty; "
+                f"reopened {_chroma_count(fresh)} chunks"
+            )
+            vector_db = fresh
     try:
         if not (query or "").strip():
-            return fetch_by_filter(vector_db, where, top_k=top_k)
-        return hybrid_retrieve(
-            vector_db, query, top_k=top_k, where=where,
-            in_conversation=in_conversation,
-            date_filtered=date_filtered,
+            return _with_chroma_retry(
+                vector_db,
+                lambda db: fetch_by_filter(db, where, top_k=top_k),
+                label="search_documents",
+            )
+        return _with_chroma_retry(
+            vector_db,
+            lambda db: hybrid_retrieve(
+                db, query, top_k=top_k, where=where,
+                in_conversation=in_conversation,
+                date_filtered=date_filtered,
+            ),
+            label="search_documents",
         )
     except Exception:
-        # An empty or missing collection should degrade to "no sources", not
-        # take the turn down. The index does not exist until build_tier_c runs.
+        # Still degrade to "no sources" so a missing index cannot take the turn
+        # down -- but the traceback above is what tells us *why*.
+        print("[search_documents] giving up:\n" + traceback.format_exc())
         return assess([], [], query, in_conversation=in_conversation)
 
 

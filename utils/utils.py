@@ -1,6 +1,7 @@
 import os
 import certifi
 import uuid
+import chromadb
 from chromadb import Settings
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
@@ -17,16 +18,42 @@ load_dotenv()
 kb_db_path = 'data/chroma_db'
 
 
+def open_chroma(persist_dir, embedding_function=None, embedding_model='text-embedding-3-small'):
+    """Open one persist directory with its own Chroma client.
+
+    chromadb.Client() is a process-wide singleton keyed by persist path, but
+    LangChain's default constructor goes through that Client() helper and two
+    indexes in one process (concepts + documents) end up sharing segment
+    state. The documents query then dies in _decode_seq_id with
+    `object of type 'int' has no len()`. PersistentClient(path=...) keeps
+    each index isolated. Collection name stays `langchain` -- that is what
+    the build scripts write.
+    """
+    persist = os.path.abspath(persist_dir)
+    if embedding_function is None:
+        embedding_function = OpenAIEmbeddings(model=embedding_model)
+    client = chromadb.PersistentClient(
+        path=persist,
+        settings=Settings(anonymized_telemetry=False),
+    )
+    return Chroma(
+        client=client,
+        persist_directory=persist,
+        embedding_function=embedding_function,
+        collection_name="langchain",
+    )
+
+
 @st.cache_resource
 # load the vectorized database
 def load_db(db_path=kb_db_path, embedding_model='text-embedding-3-small', label=''):
-    embeddings = OpenAIEmbeddings(model=embedding_model)
-    db_loaded = Chroma(
-        persist_directory=db_path,
-        embedding_function=embeddings,
-        client_settings=Settings(anonymized_telemetry=False)
-    )
-    print(f"Database loaded: {label}")
+    persist = os.path.abspath(db_path)
+    db_loaded = open_chroma(persist, embedding_model=embedding_model)
+    try:
+        n = db_loaded._collection.count()
+    except Exception as exc:
+        n = f"unreadable ({exc})"
+    print(f"Database loaded: {label} ({n} chunks from {persist})")
     return db_loaded
 
 def _get_mongodb_uri() -> str:

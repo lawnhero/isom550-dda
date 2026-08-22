@@ -100,6 +100,17 @@ openai_gpt56_luna = ChatOpenAI(
 # Back-compat alias for agent dispatch and haiku/deepseek fallbacks.
 openai_gpt4o_mini = openai_gpt56_luna
 
+# Vision route. Every screenshot turn is pinned here rather than to the usual
+# tutoring model: the instance above is the cheap dispatch build, capped at 300
+# tokens for tool calling, and a "check my JMP output" answer needs the full
+# budget plus room to transcribe what it read back to the student first.
+openai_gpt56_luna_vision = ChatOpenAI(
+    temperature=TEMPERATURE,
+    model="gpt-5.6-luna",
+    max_tokens=MAX_TOKENS,
+    reasoning_effort="none",
+)
+
 openai_4o_mini_json = ChatOpenAI(
     temperature=TEMPERATURE,
     model="gpt-4o-mini",

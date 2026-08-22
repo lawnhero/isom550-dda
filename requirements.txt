@@ -6,8 +6,20 @@ langchain_openai
 langchain-deepseek>=1.1.0
 langchain_anthropic
 langchain-text-splitters
-langchain-chroma
-chromadb==0.5.0
+# Both pinned, and they must move together.
+#
+# chromadb determines the ON-DISK SCHEMA of data/concepts and data/documents,
+# which are committed to this repo. Opening an index with a newer chromadb
+# migrates the files IN PLACE; reading a migrated index with an older one dies
+# with "object of type 'int' has no len()". So the version that builds the
+# index and the version the app installs have to be the same, and bumping this
+# means rebuilding both indexes in the same commit.
+#
+# langchain-chroma 0.2.x caps chromadb at <0.7.0; 1.1.0 is the line that
+# supports 1.x. Leaving it unpinned lets pip resolve a combination nobody has
+# run.
+langchain-chroma==1.1.0
+chromadb==1.5.9
 numpy<2.0
 protobuf==4.25.2
 opentelemetry-exporter-otlp-proto-grpc==1.24.0
@@ -15,3 +27,6 @@ pymongo
 python-dotenv
 certifi
 pypdf
+# Screenshot downscaling in utils/attachments.
+# Ships with Streamlit already; pinned here because we import it directly.
+pillow

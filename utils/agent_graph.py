@@ -24,6 +24,7 @@ from utils.ta_tools import (
     build_ta_tools,
     parse_tool_message_content,
 )
+from utils.chains_lcel import DEFAULT_MEMORY_WINDOW
 
 
 AGENT_SYSTEM_PROMPT = """You are Dayton, the Virtual TA for ISOM 550 Data and Decision Analytics.
@@ -42,28 +43,55 @@ Choose the best tool for each student request:
 - check_attempt: when the student wants feedback on their attempt
 
 Rules:
-1) Any question about a date, a person, or grading must use answer_course_facts.
-2) "What did we cover" questions: use answer_course_facts for the list of class
-   topics, and answer_course_documents with doc_type='announcement' when the
-   student wants detail about what was actually taught in a session. If the
-   student names a date ("what did we learn on July 30"), pass it as on_date
-   copied verbatim from their question, and set date_span='week' or 'month'
-   when they asked about a week or a month rather than a single day.
-3) "What am I supposed to do for <assignment>" is answer_course_documents with
+1) Course facts vs documents — pick one primary route:
+   - answer_course_facts: deadlines, due dates, schedule, office hours, people,
+     grading weights, required materials, and the overview of which class topics
+     have been covered so far.
+   - answer_course_documents: what an assignment requires, or what was taught in
+     a specific class session. NOT for due dates or grading weights.
+   - Deadline gate: if the student asks WHEN something is due ("due", "deadline",
+     "when is ... due"), use answer_course_facts and pass the whole question as
+     query. This holds even when they also name an assignment or a date --
+     "what assignment is due around July 22" is answer_course_facts, not
+     answer_course_documents. Only the synced schedule may state a due date.
+2) "What did we cover" — two different questions:
+   - Overview ("what topics have we done", "what have we covered so far") →
+     answer_course_facts.
+   - Session detail ("what did we learn on July 30", "what happened in class
+     last week") → answer_course_documents with doc_type='announcement'.
+     Copy a named date verbatim into on_date ('july 30', '7/30'). Set date_span:
+     - 'day' only when they mean that single day ("on July 21", "July 21 class").
+     - 'week' when they mean a window ("around July 21", "the week of July 30",
+       "that week"). This is the ISO week containing the named date (Mon–Sun).
+     - 'month' when they mean a whole month ("in July").
+     Leave query empty when the question is only about a time period and use
+     days_back or on_date to select documents.
+3) "What am I supposed to do for <assignment>" → answer_course_documents with
    doc_type='assignment', not answer_concept.
-4) "How do I ... in JMP/Excel" is answer_software. "What does this coefficient
-   mean" is answer_concept. A question can need both -- if so, call both.
-5) Prefer one primary tool per turn unless a short follow-up tool call clearly helps.
-6) You are a dispatcher, not the writer. The student-facing tutoring answer is
-   streamed separately from the tool payload, and anything you write yourself is
-   shown to the student ONLY when you call no tool at all. Do not summarise,
-   preview, or restate what a tool is about to say.
-7) Do not invent course policies, deadlines, or grading rules.
-8) Keep responses concise and student-friendly.
+4) Software vs concepts:
+   - "How do I ... in JMP/Excel" → answer_software.
+   - "What does this coefficient/statistic/output mean" → answer_concept.
+   - When both parts are asked ("how do I run it, and what does R-squared mean"),
+     call both tools in one turn.
+5) Practice and attempts:
+   - generate_practice when the student wants a drill question.
+   - check_attempt when they want feedback on work they wrote. Pass the full
+     attempt in attempt_text, including any attached file content in the message.
+6) Attachments:
+   - Blocks marked "--- Attached file: ... ---" are the student's own work or
+     data, not course material. Route to check_attempt when they want it reviewed;
+     copy the attached content into attempt_text.
+7) You are a dispatcher, not the writer. The student-facing answer is streamed
+   from the tool; anything you write yourself is shown ONLY when you call no
+   tool. Do not summarise, preview, or restate what a tool will say.
+8) When you call no tool (greetings, thanks, or meta questions about what you
+   can do): reply briefly in character. Do not invent course policies, deadlines,
+   or grading rules — suggest a concrete question instead.
+9) Keep your own replies concise and student-friendly.
 """
 
 
-def _history_to_messages(chat_history, max_messages: int = 8) -> List[BaseMessage]:
+def _history_to_messages(chat_history, max_messages: int = DEFAULT_MEMORY_WINDOW) -> List[BaseMessage]:
     messages: List[BaseMessage] = []
     if not chat_history:
         return messages
@@ -99,6 +127,8 @@ def build_ta_agent(
     course_span=None,
     progress: Optional[ProgressReporter] = None,
     system_prompt: Optional[str] = None,
+    memory_window: int = DEFAULT_MEMORY_WINDOW,
+    images: Optional[List[Dict[str, str]]] = None,
 ):
     tools = build_ta_tools(
         contents_db=contents_db,
@@ -111,6 +141,11 @@ def build_ta_agent(
         software_context=software_context,
         course_span=course_span,
         progress=progress,
+        memory_window=memory_window,
+        # Handed to the tools, never to the router: `agent_llm` only has to
+        # choose a route, and the query already carries a one-line marker
+        # saying a screenshot is present and readable.
+        images=images,
     )
     return _build_graph(
         agent_llm,
@@ -334,7 +369,7 @@ def run_ta_turn(
     query: str,
     chat_history,
     artifacts: TurnArtifacts,
-    memory_window: int = 8,
+    memory_window: int = DEFAULT_MEMORY_WINDOW,
     progress: Optional[ProgressReporter] = None,
     # One round of tool calls costs 3 steps (agent -> tools -> agent), so a
     # limit of 4 left no budget for a second round. When a tool call failed

@@ -63,27 +63,39 @@ Deployed (Streamlit Cloud): set `mongodb_uri` in app secrets (see `.streamlit/se
 Two vector indexes are live. Tier A is not one of them: course facts are read
 from `course_data/` at render time, never embedded.
 
-Tier B — class content Q&A (`data/contents`), read by `answer_concept`:
+Tier B — the curated concept index (`data/concepts`), read by
+`answer_concept`. Source is `course_data/concepts.csv`, hand-maintained:
 
 ```bash
-python scripts/build_index.py \
-  --source data/raw/course_materials \
-  --persist-dir data/contents
+python scripts/build_concepts.py --dry-run   # report + lint, embed nothing
+python scripts/build_concepts.py
 ```
 
-Tier C — class recaps and assignment briefs (`data/tier_c`), read by
+Tier C — class recaps and assignment briefs (`data/documents`), read by
 `answer_course_documents`. Built from the Canvas snapshot, so sync first:
 
 ```bash
-python scripts/sync_canvas.py --course-id 162137
-python scripts/build_tier_c.py
+python scripts/sync_canvas.py --course-id 165666
+python scripts/build_documents.py
 ```
+
+Both scripts are thin wrappers over `vat-research/vector_index/`, where the
+chunking, embedding and provenance stamping live so both course repos share one
+implementation. The usual way to run a refresh after a class session is the
+`canvas-course-sync` skill: it resolves the course, writes the snapshot via the
+Canvas MCP, rebuilds via the vector-index MCP's `build_document_index`, and stops at the diff for review.
+The scripts are the break-glass path; see their docstrings.
+
+Each build writes `data/<index>/provenance.json` recording the source hash,
+model and chunk count. `utils/course_context.py` compares it to the live
+snapshot and adds an advisory when the index is older, so a sync without a
+rebuild announces itself instead of quietly serving last week's announcements.
 
 After changing the embedding model or either chunker, re-derive the abstention
 thresholds — they are raw distances and go wrong silently:
 
 ```bash
-python scripts/calibrate_retrieval.py --probe --db data/contents
+python scripts/calibrate_retrieval.py --probe --db data/concepts
 ```
 
 ## Analytics scripts
