@@ -119,6 +119,9 @@ class RetrievalResult:
     # surfacing in diagnostics: it is the one place a result is kept on
     # something other than its own score.
     floored_by_date: bool = False
+    # The module filter that was dropped because it matched nothing, or "".
+    # Set by search_concepts; see the note there.
+    widened_from_module: str = ""
 
     def __bool__(self) -> bool:
         return bool(self.docs)
@@ -138,6 +141,8 @@ class RetrievalResult:
         }
         if self.floored_by_date:
             trace["floored_by_date"] = True
+        if self.widened_from_module:
+            trace["widened_from_module"] = self.widened_from_module
         return trace
 
 
@@ -718,6 +723,16 @@ def search_concepts(
     An unrecognised module yields no filter rather than an empty one -- see
     concept_taxonomy.build_concept_filter. A module the router invented should
     widen the search, never silently return nothing and read as "not covered".
+
+    The same rule applies when a RECOGNISED module matches nothing. Observed:
+    "What does a p-value of 0.03 mean?" routed to `hypothesis-testing`, a
+    module that exists in the CSV -- but the index had been built before that
+    module was renamed from `inference`, so the filter returned zero rows and
+    the tutor abstained on a concept it holds. A wrong-but-plausible module
+    from the router (the p-value concept is filed under simple-regression)
+    fails the same way with a fresh index. Either way the answer is in the
+    collection; the filter just hid it. So an empty filtered result is retried
+    unfiltered, and the trace records that the module was dropped.
     """
     from utils.concept_taxonomy import build_concept_filter, normalize_module
 
@@ -735,18 +750,22 @@ def search_concepts(
             "n_chunks": _chroma_count(vector_db),
         },
     )
-    try:
-        return _with_chroma_retry(
-            vector_db,
-            lambda db: hybrid_retrieve(
-                db,
-                query,
-                top_k=top_k,
-                where=where,
-                in_conversation=in_conversation,
-            ),
-            label="search_concepts",
+    def _search(db, filt):
+        return hybrid_retrieve(
+            db, query, top_k=top_k, where=filt, in_conversation=in_conversation,
         )
+
+    try:
+        found = _with_chroma_retry(
+            vector_db, lambda db: _search(db, where), label="search_concepts"
+        )
+        if where and not found.docs:
+            print(f"[search_concepts] module {resolved!r} matched nothing; widening")
+            found = _with_chroma_retry(
+                vector_db, lambda db: _search(db, None), label="search_concepts"
+            )
+            found.widened_from_module = resolved
+        return found
     except Exception:
         print("[search_concepts] giving up:\n" + traceback.format_exc())
         return assess([], [], query, in_conversation=in_conversation)

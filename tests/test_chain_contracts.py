@@ -251,3 +251,46 @@ def test_practice_is_not_grounded_on_a_loose_match():
     assert step.sources == []
     assert step.stream_spec.payload["concept_context"].startswith("(none")
     assert step.trace["grounded_on"] == "(none)"
+
+
+def test_compound_turn_context_reaches_both_chains(tools, all_chains):
+    from utils.ta_tools import annotate_compound_turn
+
+    built, artifacts = tools
+    built["answer_software"].invoke({"query": "How do I fit a line in JMP?"})
+    built["answer_concept"].invoke({"query": "what does r-squared mean", "module": "simple-regression"})
+    steps = list(artifacts.steps.values())
+    assert annotate_compound_turn(steps) == 2
+    for step in steps:
+        rendered = "".join(all_chains[step.stream_spec.chain_key].stream(step.stream_spec.payload))
+        assert "THIS IS PART" in rendered
+        assert "written separately" in rendered
+
+
+def test_single_turn_renders_an_empty_context_slot(tools, all_chains):
+    built, artifacts = tools
+    built["answer_software"].invoke({"query": "How do I fit a line in JMP?"})
+    step = next(iter(artifacts.steps.values()))
+    rendered = "".join(all_chains["software_chain"].stream(step.stream_spec.payload))
+    assert "THIS IS PART" not in rendered and "{turn_context}" not in rendered
+
+
+def test_empty_module_filter_widens_instead_of_abstaining(all_chains):
+    """A module the router names but the index cannot match (renamed since the
+    build, or simply the wrong guess) must not hide a concept the index holds."""
+    class _ModuleAware(_StubIndex):
+        def similarity_search_with_score(self, query, k=4, filter=None):
+            if filter == {"module": {"$eq": "hypothesis-testing"}}:
+                return []   # nothing filed there
+            return super().similarity_search_with_score(query, k, filter)
+
+    artifacts = TurnArtifacts()
+    built = {t.name: t for t in build_ta_tools(
+        contents_db=_ModuleAware(CONCEPTS, distance=1.0), documents_db=None, chains_dict={},
+        chat_history=[], response_mode="Direct answer", artifacts=artifacts,
+    )}
+    built["answer_concept"].invoke({"query": "what does a p-value of 0.03 mean", "module": "hypothesis-testing"})
+    step = next(iter(artifacts.steps.values()))
+    assert not step.abstained
+    assert step.trace["widened_from_module"] == "hypothesis-testing"
+    assert step.sources == ["Interpreting R-squared"]

@@ -5,7 +5,7 @@ Student-centered RAG chatbot for MBA Data and Decision Analytics.
 ## What is new in this revamp
 - Hybrid LangGraph agent with LCEL tutoring tools (`answer_course_facts`, `answer_course_documents`, `answer_software`, `answer_concept`, `generate_practice`, `coach_practice`, `check_attempt`)
 - The practice question on screen is held in session state (`utils/practice.py`), so hints, "a harder one", and attempt checks all refer to the same question
-- Adaptive tutoring controls: `Direct answer`, `Hint-first`, `Teach me step-by-step`
+- One guidance switch ("Show me how to work through it", on by default) instead of three response modes; concept and assignment answers end with an ordered plan when it is on, and with one check when it is off. Facts, software steps and practice are unaffected either way
 - Bounded recent-chat window (8 messages) in every prompt
 - Hybrid retrieval with injected context and explicit source blocks for logistics answers
 - Objective-aware tutoring prompts with attempt-check feedback behavior

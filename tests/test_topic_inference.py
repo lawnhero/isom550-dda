@@ -21,7 +21,7 @@ from utils.chains_lcel import (
 def test_outline_is_modules_in_teaching_order_with_written_topics():
     out = tax.outline()
     assert [m["id"] for m in out][:4] == [
-        "describing-one-variable", "describing-two-variables", "inference", "simple-regression",
+        "describing-one-variable", "describing-two-variables", "hypothesis-testing", "simple-regression",
     ]
     by_id = {m["id"]: m for m in out}
     assert [t["label"] for t in by_id["simple-regression"]["topics"]] == [
@@ -43,7 +43,7 @@ def test_curriculum_topics_are_module_labels():
 def test_subtopics_resolve_by_label_or_id():
     assert get_subtopics("Simple regression") == ["p-values", "Slope", "R-squared and model fit"]
     assert tax.subtopics("simple-regression") == get_subtopics("Simple regression")
-    assert get_subtopics("Inference") == ["Hypothesis testing"]
+    assert get_subtopics("Hypothesis testing") == ["Hypothesis testing"]
     assert get_subtopics("Probability") == []
 
 
@@ -90,7 +90,7 @@ def test_taxonomy_reads_follow_the_file(tmp_path):
         ("Is multicollinearity a problem here?", "Multiple regression"),
         ("How do I run a regression in JMP?", "Simple regression"),
         ("What is a p-value?", "Simple regression"),
-        ("is 0.03 significant", "Inference"),
+        ("is 0.03 significant", "Hypothesis testing"),
         ("what is a z-score", "Describing one variable"),
         ("how do I fold back a decision tree", "Decision basics"),
         ("what is the value of information", "Sensitivity analysis"),
@@ -131,3 +131,15 @@ def test_topic_from_history_prefers_latest_student_turn(chat_history):
 )
 def test_is_new_question(text, expected):
     assert is_new_question(text) is expected
+
+
+def test_index_drift_reports_a_csv_newer_than_the_build(tmp_path):
+    csv_path = tmp_path / "concepts.csv"
+    csv_path.write_text("id,title,topic,module,body,status\na,T,Topic,mod,Body,core\n", encoding="utf-8")
+    prov = tmp_path / "provenance.json"
+    assert "no build stamp" in tax.index_drift(csv_path, prov)
+    import hashlib, json
+    prov.write_text(json.dumps({"sha256": hashlib.sha256(csv_path.read_bytes()).hexdigest(), "built_at": "t"}))
+    assert tax.index_drift(csv_path, prov) == ""
+    csv_path.write_text("id,title,topic,module,body,status\na,T,Topic,renamed,Body,core\n", encoding="utf-8")
+    assert "has changed since" in tax.index_drift(csv_path, prov)

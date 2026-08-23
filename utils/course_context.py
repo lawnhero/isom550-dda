@@ -482,10 +482,18 @@ def render_software_context(schedule, facts, limit=None):
                 lines.append(f"  {label}: {software[key]}")
 
     conventions = (software.get("conventions") or "").strip()
+    lines.append("")
     if conventions:
-        lines.append("")
         lines.append("COURSE CONVENTIONS (these override tool defaults)")
         lines.append(conventions)
+    else:
+        # Said explicitly. With the block simply absent, the software route
+        # invented one ("the course expects you to report RSquare, RMSE and the
+        # parameter estimates") and presented it as policy.
+        lines.append(
+            "COURSE CONVENTIONS: none recorded for this course. Do not claim the "
+            "course expects a particular option, report, or output."
+        )
 
     pages = [
         p for p in (schedule or {}).get("pages", [])
@@ -572,3 +580,28 @@ def get_software_context():
 def get_course_links():
     """{'canvas_url', 'instructor_email'} for student-facing fallbacks."""
     return _cached_links(_mtimes())
+
+
+@st.cache_data(show_spinner=False)
+def _cached_banner(mtimes):
+    """What the sidebar footer states about the course: code, term, when the
+    schedule was last synced, and who teaches it. Read from the same two files
+    as the prompt block, so the footer can never disagree with the tutor."""
+    schedule, facts = load()
+    course = (schedule or {}).get("course") or {}
+    inst = (facts or {}).get("instructor") or {}
+    synced = _parse((schedule or {}).get("generated_at"))
+    tz = ZoneInfo(course.get("timezone", "America/New_York"))
+    return {
+        "code": ((facts or {}).get("course") or {}).get("code") or course.get("code", ""),
+        "term": course.get("term") or (facts or {}).get("term", ""),
+        "synced_on": _fmt_day(synced.astimezone(tz)) if synced else "",
+        "canvas_url": course.get("url", ""),
+        "instructor_name": inst.get("name", ""),
+        "instructor_email": inst.get("email", ""),
+    }
+
+
+def get_course_banner():
+    """Sidebar footer facts. Safe to call every rerun."""
+    return _cached_banner(_mtimes())

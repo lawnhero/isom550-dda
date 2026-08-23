@@ -21,6 +21,7 @@ from utils.ta_tools import (
     ToolExecutionResult,
     ToolStep,
     TurnArtifacts,
+    annotate_compound_turn,
     build_ta_tools,
     parse_tool_message_content,
 )
@@ -436,6 +437,11 @@ def run_ta_turn(
 
     steps = _ordered_steps(tool_results, artifacts)
     answerable = [step for step in steps if step.produced_answer]
+    # Two or more sections: tell each what the others cover, so they read as
+    # parts of one answer rather than two full replies stapled together.
+    compound_parts = annotate_compound_turn(steps)
+    if compound_parts:
+        progress.emit(detail=f"Splitting the answer into {compound_parts} parts")
 
     # Nothing prepared an answer -- either the router picked no tool, or every
     # call failed. Its own words are then the only thing to show.

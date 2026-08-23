@@ -45,6 +45,8 @@ rerun, and editing the CSV takes effect on the next rerun with no rebuild.
 """
 
 import csv
+import hashlib
+import json
 import re
 from collections import defaultdict
 from functools import lru_cache
@@ -323,3 +325,36 @@ def infer_module(text: str, path=DEFAULT_PATH) -> str:
 
 def infer_module_label(text: str, path=DEFAULT_PATH) -> str:
     return module_label(infer_module(text, path))
+
+
+# --------------------------------------------------------------------------
+# Index freshness
+# --------------------------------------------------------------------------
+CONCEPTS_PROVENANCE_PATH = Path("data/concepts/provenance.json")
+
+
+def index_drift(path=DEFAULT_PATH, provenance_path=CONCEPTS_PROVENANCE_PATH) -> str:
+    """Why the concept index cannot be trusted to match the CSV, or "".
+
+    Everything in this module reads the CSV live; the index's `module`
+    metadata is a copy frozen at build time. Rename a module in the CSV and
+    the router is offered the new id while the filter looks for it in an
+    index that only knows the old one -- observed as an abstention on a
+    concept the index held. Compared on content hash, like the documents
+    index, so a checkout or a touch does not cry wolf.
+    """
+    try:
+        prov = json.loads(Path(provenance_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "The concept index carries no build stamp; rebuild it to be sure it matches concepts.csv."
+    try:
+        current = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return ""
+    if prov.get("sha256") and prov["sha256"] != current:
+        return (
+            f"concepts.csv has changed since the concept index was built "
+            f"({prov.get('built_at', 'unknown time')}). Module filters may miss "
+            "renamed modules until it is rebuilt (build_concept_index)."
+        )
+    return ""

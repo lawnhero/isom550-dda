@@ -50,9 +50,6 @@ email = ""
 
 [grading]
 # Verify against the syllabus each term.
-# NOTE: Canvas assignment groups (Individual / Group / Quizzes / Final) may also
-# carry these weights. If Canvas has them, delete this block and let the sync
-# own it -- see the no-duplication rule at the top of this file.
 weights = """
 | Grading item                 | Weight |
 |------------------------------|--------|
@@ -63,8 +60,19 @@ weights = """
 | Individual final exam        | 30%    |
 """
 
-late_policy  = ""   # TODO — most-asked logistics question in most courses
-regrade      = ""   # TODO — how to request a regrade
+late_policy  = """
+Assignment due dates follow the pace of the course. If you cannot submit on
+time, email the instructor before the deadline and request an extension.
+Extensions are granted at the instructor's discretion, with fairness to all
+students and teams.
+"""   
+regrade      = """
+Regrades are welcome when you find a grading error.
+Email the instructor within 7 days of the grade being posted on Canvas. 
+The request must identify the assignment and the specific
+question(s), and include evidence: your submitted work, the rubric or posted
+solution, and a brief explanation of why the original mark is incorrect.
+"""   
 
 
 [materials]
@@ -94,7 +102,17 @@ addins    = "TreePlan Excel add-in, for decision tree modeling"
 
 # The software route answers JMP/Excel questions from the model's own knowledge
 # rather than from retrieval -- it knows these tools well. 
-conventions = ""
+conventions = """
+- Regression is done in JMP via Analyze > Fit Model (Standard Least Squares, Minimum Report). Excel's Data Analysis ToolPak is also discussed.
+- Correlation applied to only Quantitative variables as well as binary variables only. 
+- Categorical predictors: interpret coefficients using indicator (dummy) coding for both Excel and JMP. In JMP, read them from red triangle > Estimates > Indicator Parameterization Estimates, not the default Parameter Estimates.
+- Logistic regression in JMP models the probability of Y=1. Set the outcome of interest as the target level (red triangle > Target Level) before interpreting signs or odds ratios.
+- Report RSquare for both simple and multiple regression regression.
+- Significance is judged at 0.05, two-tailed, using Prob > |t|.
+- Model reduction is done by hand: remove the single insignificant variable with the highest p-value, re-run, repeat. For JMP, use the specification in Effect Summary.
+- Decision trees are built with the TreePlan add-in in Excel only. Terminal node values are net cash flows; roll back with expected values.
+- Sensitivity analysis uses Excel Data > What-If Analysis (Goal Seek, one- and two-variable Data Tables)
+"""
 
 
 [objectives]

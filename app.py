@@ -1,4 +1,7 @@
+import queue
+import threading
 import time
+import traceback
 import uuid
 from pathlib import Path
 
@@ -145,6 +148,127 @@ def _stream_answer(stream, progress=None, label=PHASE_WRITING):
             announced = True
         placeholder.markdown(ui.escape_md_dollars("".join(chunks)))
     return "".join(chunks)
+
+
+# A section whose chain failed while the others succeeded. The turn goes on;
+# the student loses one part, not the whole answer, and is told which.
+SECTION_FAILED = (
+    "I couldn't write this part of the answer just now. Ask it again on its "
+    "own and I'll try once more."
+)
+
+_SECTION_DONE = object()
+
+
+def _stream_sections(answerable, progress):
+    """Stream every prepared section at once, painted in router order.
+
+    Returns `(texts, failures)`, one entry per step.
+
+    The sections used to stream one after another, so on a two-tool turn the
+    second chain -- whose payload had been ready since routing finished --
+    sat idle for the whole of the first one's stream. Measured on "how do I
+    run a regression in JMP and what does R-squared mean": 6.2 s of JMP steps
+    before the first R-squared token. Both chains now run together; wall
+    clock is the longest section rather than the sum.
+
+    Streamlit will only paint from the script thread, so the chains run in
+    workers that push chunks onto ONE queue, and this thread drains it and
+    writes each chunk into its section's placeholder. The placeholders are
+    created up front, in order, so sections stay where the router put them
+    no matter which chain is faster. Badges and sources are drawn into each
+    section's container once everything has finished.
+    """
+    slots = []
+    for position, step in enumerate(answerable):
+        if position:
+            st.space("small")
+        container = st.container()
+        with container:
+            placeholder = st.empty()
+        slots.append((step, container, placeholder))
+
+    inbox: "queue.Queue" = queue.Queue()
+
+    def worker(index, chain, payload):
+        try:
+            for chunk in chain.stream(payload):
+                text = (
+                    chunk if isinstance(chunk, str)
+                    else getattr(chunk, "content", None) or str(chunk)
+                )
+                inbox.put((index, text))
+            inbox.put((index, _SECTION_DONE))
+        except Exception as exc:  # delivered to the script thread, not raised here
+            inbox.put((index, exc))
+
+    texts = [""] * len(slots)
+    failures = [None] * len(slots)
+    running = 0
+    for index, (step, container, placeholder) in enumerate(slots):
+        if step.stream_spec is None:
+            texts[index] = step.static_answer
+            placeholder.markdown(ui.escape_md_dollars(step.static_answer))
+            continue
+        chain = all_chains.get(step.stream_spec.chain_key)
+        if chain is None:
+            raise ValueError(f"Unknown stream chain: {step.stream_spec.chain_key}")
+        threading.Thread(
+            target=worker, args=(index, chain, step.stream_spec.payload), daemon=True
+        ).start()
+        running += 1
+
+    if running > 1:
+        progress.emit(label=f"Writing {running} parts of your answer")
+    elif running:
+        progress.emit(label=PHASE_WRITING)
+
+    started = set()
+    while running:
+        index, item = inbox.get()
+        step, _, placeholder = slots[index]
+        if item is _SECTION_DONE:
+            running -= 1
+            continue
+        if isinstance(item, Exception):
+            running -= 1
+            failures[index] = item
+            print(f"[section {step.tool_name}] stream failed: {item!r}")
+            texts[index] = SECTION_FAILED
+            placeholder.markdown(texts[index])
+            progress.emit(detail=f"Could not write the {ui.route_meta(step.tool_name)['badge'].lower()} part")
+            continue
+        if not item:
+            continue
+        if index not in started:
+            started.add(index)
+            if len(slots) > 1:
+                progress.emit(
+                    detail=f"Writing the {ui.route_meta(step.tool_name)['badge'].lower()} part"
+                )
+        texts[index] += item
+        placeholder.markdown(ui.escape_md_dollars(texts[index]))
+
+    # Same footer the transcript redraws (see _render_section), so the live
+    # turn and its replay cannot drift.
+    for index, (step, container, _) in enumerate(slots):
+        with container:
+            ui.render_answer_footer(
+                step.tool_name,
+                step.retrieval_debug,
+                key=f"sources_live_{index}",
+                abstained=step.abstained,
+                weak=step.retrieval_quality == "weak",
+            )
+            if step.abstained:
+                ui.render_unresolved(get_course_links(), key=f"unresolved_live_{index}")
+
+    streamed = [i for i, (step, _, _) in enumerate(slots) if step.stream_spec is not None]
+    if streamed and all(failures[i] is not None for i in streamed):
+        # Nothing reached the student. Let the turn's fallback path answer
+        # instead of leaving only apologies on screen.
+        raise failures[streamed[0]]
+    return texts, failures
 
 
 # --------------------------------------------------------------------------
@@ -421,6 +545,15 @@ def main():
 
     st.title("ISOM 550 Virtual TA")
     sidebar_settings = sidebar()
+    # Instructor-only: the concept index is a frozen copy of concepts.csv, and
+    # a renamed module makes the router's filter miss. Students are covered by
+    # the widening in retrieval.search_concepts; this is the nudge to rebuild.
+    if sidebar_settings["show_diagnostics"]:
+        from utils.concept_taxonomy import index_drift
+
+        drift = index_drift()
+        if drift:
+            st.warning(drift, icon=":material/sync_problem:")
     initial_text = (
         "Hi, I'm Dayton, your virtual TA."
     )
@@ -697,45 +830,9 @@ def main():
                 # One section per tool call, in the order the model asked for
                 # them -- which mirrors the order the student asked. Each gets
                 # its own badge and its own sources, so a JMP walkthrough and a
-                # concept explanation are never merged under one label.
-                for position, step in enumerate(answerable):
-                    if position:
-                        st.space("small")
-                    # Each section says which of them is being written, so a
-                    # two-tool turn does not look stalled halfway through.
-                    section_label = PHASE_WRITING
-                    if len(answerable) > 1:
-                        badge = ui.route_meta(step.tool_name)["badge"]
-                        section_label = f"Writing the {badge.lower()} part"
-                    if step.stream_spec is not None:
-                        chain = all_chains.get(step.stream_spec.chain_key)
-                        print('-----chain: ', step.stream_spec.chain_key)
-                        if chain is None:
-                            raise ValueError(
-                                f"Unknown stream chain: {step.stream_spec.chain_key}"
-                            )
-                        # The label flips on the first streamed token.
-                        text = _stream_answer(
-                            chain.stream(step.stream_spec.payload),
-                            progress=progress,
-                            label=section_label,
-                        )
-                    else:
-                        progress.emit(label=section_label)
-                        text = step.static_answer
-                        ui.md(text)
-                    ui.render_answer_footer(
-                        step.tool_name,
-                        step.retrieval_debug,
-                        key=f"sources_live_{position}",
-                        abstained=step.abstained,
-                        weak=step.retrieval_quality == "weak",
-                    )
-                    if step.abstained:
-                        ui.render_unresolved(
-                            get_course_links(), key=f"unresolved_live_{position}"
-                        )
-                    texts.append(text)
+                # concept explanation are never merged under one label. The
+                # sections stream concurrently; see _stream_sections.
+                texts, _ = _stream_sections(answerable, progress)
                 ai_response = "\n\n".join(t for t in texts if t)
             elif turn_result.get("answer"):
                 progress.emit(label=PHASE_WRITING)
@@ -801,7 +898,10 @@ def main():
             )
 
         except Exception as e:
-            print(e)
+            # Full trace to stderr, unbuffered: under a process manager stdout
+            # is block-buffered and a bare print(e) lost both the stack and,
+            # often, the message itself.
+            traceback.print_exc()
             # The exception text is for whoever is debugging, not the student:
             # the label already says the lookup failed, and the fallback answer
             # arrives underneath it either way.

@@ -51,6 +51,8 @@ Weak points, ordered by impact:
 | A5 | `_stream_answer` emitted a progress event — and re-rendered `st.status` — on every streamed token. | **Fixed** — one event on the first real token. |
 | A6 | The "no tool prepared an answer → class_chain" branch in `app.py` is unreachable: `_final_answer` always returns non-empty text. Harmless, but misleading to read. | Open (cosmetic). |
 | A7 | Leftover `print('-----turn_result')` / `print('-----chain')` debugging in the turn loop. | **Fixed** — removed. |
+| A8 | A module filter that matches nothing abstained on a concept the index holds. Observed: "What does a p-value of 0.03 mean?" → router passes `hypothesis-testing` (from the CSV), the index still says `inference` (built before the rename), filter returns zero rows, tool abstains. A plausible-but-wrong module from the router fails the same way on a fresh index. | **Fixed** — `search_concepts` retries unfiltered when the filtered search is empty and records `widened_from_module` in the trace; `concept_taxonomy.index_drift()` warns (diagnostics view) when the CSV hash no longer matches the concept index's provenance stamp. |
+| A9 | Three response modes (Direct / Hint-first / Step-by-step) for a setting only two of nine chains read. Logs: 459 / 48 / **1** uses across 508 turns. | **Fixed** — one switch, "Show me how to work through it" (on by default), mapped onto the two `response_mode` values the chains and analytics already use. Hint-first branches removed from the three prompts that had them; hints live in `coach_practice`, where withholding teaches something. |
 
 ---
 
@@ -220,3 +222,42 @@ small diff.
 **P7. Grading weights: pick one owner (T3).** Either delete the table from
 `facts.toml` and render Canvas `grading_weights`, or keep the TOML (more
 detailed) and add a one-line advisory when the Canvas totals disagree with it.
+
+---
+
+## 6. Compound turns (implemented 2026-08-23)
+
+Measured before, on "how to do regression in JMP and how to interpret R2":
+router 2.2 s, then `software_chain` 6.2 s / 357 words, then `concept_chain`
+3.8 s / 155 words -- ~12 s wall clock, the JMP section explaining R-squared
+before the R-squared section did, both parts signing off with their own
+question, and no cap on the software section's length. In the query log, 28
+of 238 turns (12%) called two tools.
+
+Two changes, independent and additive:
+
+**Compound-aware sections.** Every tool records `ToolStep.covers` (what its
+section answers, usually the router's own query argument).
+`ta_tools.annotate_compound_turn`, called from `run_ta_turn`, writes a
+`turn_context` block into each streamed section's payload when there are two
+or more: part N of M, what the other parts cover, a bold heading, a
+150-word cap, no greeting, and a follow-up question on the last part only.
+Every chain template carries a `{turn_context}` slot that renders "" on a
+single-tool turn. `software_chain` also gained a 200-word cap and an explicit
+rule for when no course conventions are recorded (it had invented one).
+
+**Concurrent streaming.** `app._stream_sections` starts one worker thread
+per section, all feeding a single queue; the script thread drains it into
+placeholders created up front in router order, then draws each section's
+footer. A section whose chain fails shows a one-line apology and the turn
+continues; only if every section fails does the turn fall to `class_chain`.
+
+After: **5.5-5.8 s** wall clock, JMP part ~110 words ending "see the
+R-squared part below", R-squared part ~120 words with the only follow-up
+question, both badges and the sources popover intact. Conventions from the
+updated `facts.toml` (Minimum Report, Indicator Parameterization) appear in
+the JMP steps.
+
+`scripts/smoke_turn.py` runs a turn through `app.py` headlessly with
+Streamlit's AppTest and prints every section and any swallowed exception --
+this is how the signature drift in `ui.render_sources` was caught.

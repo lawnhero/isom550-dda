@@ -51,6 +51,10 @@ class ToolStep:
     retrieval_quality: str = ""
     abstained: bool = False
     practice_topic: str = ""
+    # One line saying what this section answers, in the student's terms. Read
+    # by annotate_compound_turn so the OTHER sections of a two-tool turn can
+    # be told what not to cover. Usually the router's own query argument.
+    covers: str = ""
     # Per-tool debugging record. Tool args alone are not enough now that dates
     # are resolved in Python: seeing on_date='july 30' tells you nothing about
     # whether it became the right ymd range or hit the right filter.
@@ -407,6 +411,7 @@ def _prepare_rag_tool(
     practice_topic = _concept_focus(found) or chains.infer_curriculum_topic(query)
     step.sources = sources
     step.practice_topic = practice_topic
+    step.covers = query
     step.stream_spec = _stream_spec(chain_key, payload, images)
     step.retrieval_quality = found.quality
     step.trace = {
@@ -427,6 +432,62 @@ def _prepare_rag_tool(
         retrieval_quality=found.quality,
         step_id=step.step_id,
     )
+
+
+# Word budget per section of a compound turn. Two sections at the single-turn
+# caps (180-200 words each, and software_chain had none) made a 500-word
+# reply; two parts of one answer should read like one answer.
+COMPOUND_SECTION_WORDS = 150
+
+
+def annotate_compound_turn(steps: List[ToolStep]) -> int:
+    """Tell each streamed section that it is one part of a larger answer.
+
+    Writes `turn_context` into the payload of every step that will stream,
+    when there are at least two of them; every chain template carries a
+    `{turn_context}` slot that renders this block (see chains_lcel). Returns
+    the number of parts annotated, 0 when the turn is not compound.
+
+    The chains were written to answer alone, and alone is what they did even
+    when paired: the JMP section explained R-squared before the concept
+    section got to, both signed off with their own follow-up question, and
+    nothing told the student where one part ended and the next began. The
+    router already knows the split -- it wrote a query per tool -- so each
+    section is told what the others cover and what that leaves for it.
+
+    Static answers (abstentions, "paste your attempt") are not parts; a turn
+    with one streamed section and one refusal is not compound.
+    """
+    streamed = [step for step in steps if step.stream_spec is not None]
+    total = len(streamed)
+    if total < 2:
+        return 0
+    for index, step in enumerate(streamed, start=1):
+        lines = [
+            f"THIS IS PART {index} OF {total} OF ONE ANSWER. The student asked a "
+            "compound question; each part is written separately and read in order.",
+        ]
+        for other_index, other in enumerate(streamed, start=1):
+            who = "you" if other is step else "written separately"
+            what = other.covers or ui.route_meta(other.tool_name)["badge"]
+            lines.append(f"- Part {other_index} ({who}): {what}")
+        lines.append("Rules for your part. These override any length or ending rule above:")
+        lines.append("- Open with a bold heading of at most six words naming what this part covers.")
+        lines.append(
+            "- Cover only your part. Do not explain what another part covers; "
+            "refer to it in a few words at most (\"see the R-squared part below\")."
+        )
+        lines.append("- Do not greet, introduce yourself, or restate the question.")
+        lines.append(f"- Keep your part under {COMPOUND_SECTION_WORDS} words.")
+        if index == total:
+            lines.append("- You are the last part: end with one short follow-up question.")
+        else:
+            lines.append(
+                "- You are not the last part: end with your content. No closing "
+                "question, offer, or summary -- the next part follows immediately."
+            )
+        step.stream_spec.payload["turn_context"] = "\n".join(lines)
+    return total
 
 
 def build_ta_tools(
@@ -517,6 +578,7 @@ def build_ta_tools(
             "chat_history": _history_text(),
             "query": query,
         }
+        step.covers = query
         step.stream_spec = StreamSpec(chain_key="facts_chain", payload=payload)
         step.trace = {
             "tool": "answer_course_facts", "chain": "facts_chain",
@@ -546,6 +608,7 @@ def build_ta_tools(
         # Deliberately no vector search. Retrieval here was actively harmful:
         # a JMP question used to land in answer_concept and get four unrelated
         # stats Q&A rows injected as authoritative "course context".
+        step.covers = query
         step.stream_spec = _stream_spec(
             "software_chain",
             {
@@ -725,15 +788,17 @@ def build_ta_tools(
 
         sources = _extract_source_labels(found.docs)
         step.sources = sources
+        doc_question = (query or "").strip() or _filter_only_question(
+            doc_type, days_back, on_date, date_span
+        )
+        step.covers = doc_question
         step.stream_spec = StreamSpec(
             chain_key="doc_chain",
             payload={
                 "context": chains._format_docs(found.docs),
                 "chat_history": _history_text(),
                 "response_mode": response_mode,
-                "query": (query or "").strip() or _filter_only_question(
-                    doc_type, days_back, on_date, date_span
-                ),
+                "query": doc_question,
             },
         )
         step.retrieval_quality = found.quality
@@ -846,6 +911,7 @@ def build_ta_tools(
             detail=f"Writing a {difficulty}-difficulty practice question on {topic}"
         )
         step.practice_topic = topic
+        step.covers = f"a new practice question on {topic}"
         step.stream_spec = StreamSpec(chain_key="practice_chain", payload=payload)
         step.trace = {
             "tool": "generate_practice", "chain": "practice_chain",
@@ -914,6 +980,7 @@ def build_ta_tools(
             detail=f"Coaching on the open question ({resolved.replace('_', ' ')})"
         )
         step.practice_topic = topic
+        step.covers = f"help ({resolved.replace('_', ' ')}) with the practice question on screen"
         step.stream_spec = StreamSpec(chain_key="coach_chain", payload=payload)
         step.trace = {
             "tool": "coach_practice", "chain": "coach_chain", "retrieval": False,
@@ -986,6 +1053,7 @@ def build_ta_tools(
             detail=f"Reviewing your attempt on {topic} ({len(attempt_text):,} chars)"
         )
         step.practice_topic = topic
+        step.covers = f"feedback on the student's attempt ({topic})"
         step.stream_spec = _stream_spec("check_chain", payload, images)
         step.trace = {
             "tool": "check_attempt", "chain": step.stream_spec.chain_key,

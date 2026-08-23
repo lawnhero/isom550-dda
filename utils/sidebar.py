@@ -1,9 +1,23 @@
 import streamlit as st
 from datetime import datetime
 
+from utils.course_context import get_course_banner
+
 # Recent-message window is an internal tuning knob, not a student control.
 # Keep in sync with chains_lcel.DEFAULT_MEMORY_WINDOW.
 DEFAULT_MEMORY_WINDOW = 8
+
+# One switch, not three modes. The old segmented control offered Direct /
+# Hint-first / Step-by-step and only two of nine chains read it at all. In
+# 508 logged turns the default was used 459 times, Direct 48, Hint-first
+# once -- and hint-first on an EXPLANATION was the wrong instinct anyway;
+# the tutor withholds answers where that teaches something (the open
+# practice question, via coach_practice). The switch keeps the one
+# distinction students actually used and maps onto the same two
+# `response_mode` values the chains and the analytics already know.
+GUIDED_MODE = "Teach me step-by-step"
+DIRECT_MODE = "Direct answer"
+DEFAULT_RESPONSE_MODE = GUIDED_MODE
 
 def diagnostics_unlocked():
     """
@@ -106,61 +120,66 @@ def save_chat_history():
     
     return chat_content
 
-def sidebar():
-    """Enhanced sidebar for MBA Data Analytics Virtual TA."""
-    with st.sidebar:
-        
-        response_modes = ["Direct answer", "Hint-first", "Teach me step-by-step"]
-        if "response_mode" not in st.session_state:
-            st.session_state.response_mode = "Teach me step-by-step"
-        response_mode = st.segmented_control(
-            "Response style",
-            options=response_modes,
-            key="response_mode",
-            help=(
-                "How much guidance you want on concepts and assignments. "
-                "Deadlines, policies, and JMP/Excel steps are always answered "
-                "directly — a hint about where the final exam is would just "
-                "waste your time."
-            ),
-        )
-        if response_mode is None:
-            response_mode = "Teach me step-by-step"
-            st.session_state.response_mode = response_mode
+def _render_outline() -> None:
+    """What the tutor can explain, from the same CSV that drives the pills.
 
-        # Instructor-only controls: hidden unless unlocked via ?debug= in the URL.
-        if diagnostics_unlocked():
-            # Both need explicit keys. Passing a session-state value as `value`
-            # with no key makes Streamlit regenerate the widget id whenever that
-            # value changes, which re-creates the widget from its default and
-            # silently discards the click -- the diagnostics toggle could not be
-            # turned on at all.
-            st.session_state.setdefault("memory_window", DEFAULT_MEMORY_WINDOW)
-            st.session_state.setdefault("show_diagnostics", False)
-            memory_window = st.slider(
-                "Recent message window",
-                min_value=4,
-                max_value=16,
-                step=2,
-                key="memory_window",
-                help="Number of recent messages included in each tutoring prompt.",
-            )
-            show_diagnostics = st.toggle(
-                "Show agent diagnostics",
-                key="show_diagnostics",
-                help="Display tool calls and retrieval debug info for development.",
-            )
-        else:
-            # No widgets here, so these have to be written back by hand.
-            memory_window = DEFAULT_MEMORY_WINDOW
-            show_diagnostics = False
-            st.session_state.memory_window = memory_window
-            st.session_state.show_diagnostics = show_diagnostics
+    Listed as modules in teaching order with their topics, so the sidebar
+    answers "can you help with X?" before the student has to ask -- and so
+    the list can never disagree with the pills or the index, because all
+    three are derived from the one file.
+    """
+    from utils.concept_taxonomy import outline
+
+    modules = outline()
+    if not modules:
+        return
+    with st.expander("What I can help with", icon=":material/menu_book:"):
+        for module in modules:
+            labels = [t["label"] for t in module["topics"]]
+            # A module with one topic that repeats its own name has nothing
+            # to add on the second line.
+            if labels and labels != [module["label"]]:
+                topics = " · ".join(labels)
+                st.markdown(f"**{module['label']}**  \n<small>{topics}</small>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"**{module['label']}**")
+        st.caption(
+            "Plus due dates, class recaps, assignment instructions, and "
+            "JMP / Excel steps."
+        )
+
+
+def _render_footer() -> None:
+    """Course, term, when the schedule was last synced, and who to email.
+
+    The sync date is the one honest freshness signal the app has: a student
+    who sees "synced Aug 21" knows how much to trust a due date without
+    reading the reliability advisory the prompt gets.
+    """
+    banner = get_course_banner()
+    head = " · ".join(x for x in (banner.get("code"), banner.get("term")) if x)
+    if head:
+        st.caption(head)
+    if banner.get("synced_on"):
+        st.caption(f"Schedule synced {banner['synced_on']}")
+    if banner.get("instructor_name"):
+        st.caption(banner["instructor_name"])
+    if banner.get("instructor_email"):
+        st.caption(f"[{banner['instructor_email']}](mailto:{banner['instructor_email']})")
+
+
+def sidebar():
+    """Sidebar: one primary action, two quiet ones, one switch, and context.
+
+    Top to bottom in order of how often a student reaches for it: starting
+    over, then saving / help, then the guidance switch, then what the tutor
+    covers, then who runs the course.
+    """
+    with st.sidebar:
+        if st.button("New chat", icon=":material/add_comment:", type="primary", width="stretch"):
+            clear_chat_history()
 
         with st.container(horizontal=True):
-            if st.button("Clear chat", icon=":material/delete:", width="stretch"):
-                clear_chat_history()
-
             if st.session_state.get("chat_history"):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 st.download_button(
@@ -179,13 +198,60 @@ def sidebar():
                     width="stretch",
                     help="No conversation to save",
                 )
+            if st.button("How this works", icon=":material/help:", width="stretch"):
+                show_help_dialog()
 
-        if st.button("How this works", icon=":material/help:", width="stretch"):
-            show_help_dialog()
+        st.space("small")
+        st.session_state.setdefault("guided_steps", True)
+        guided = st.toggle(
+            "Show me how to work through it",
+            key="guided_steps",
+            help=(
+                "On: concept and assignment answers end with a short ordered "
+                "plan for applying them. Off: just the answer and one thing to "
+                "check. Deadlines, policies, and JMP / Excel steps are always "
+                "answered directly either way."
+            ),
+        )
+        response_mode = GUIDED_MODE if guided else DIRECT_MODE
+        # Kept under its old key: the analytics events and the chains still
+        # speak in response_mode values.
+        st.session_state.response_mode = response_mode
+
+        # Instructor-only controls: hidden unless unlocked via ?debug= in the URL.
+        if diagnostics_unlocked():
+            # Both need explicit keys. Passing a session-state value as `value`
+            # with no key makes Streamlit regenerate the widget id whenever that
+            # value changes, which re-creates the widget from its default and
+            # silently discards the click -- the diagnostics toggle could not be
+            # turned on at all.
+            st.session_state.setdefault("memory_window", DEFAULT_MEMORY_WINDOW)
+            st.session_state.setdefault("show_diagnostics", False)
+            memory_window = st.slider(
+                "Recent message window",
+                min_value=4,
+                max_value=16,
+                step=2,
+                key="memory_window",
+                help="Number of recent messages considered before using summary memory.",
+            )
+            show_diagnostics = st.toggle(
+                "Show agent diagnostics",
+                key="show_diagnostics",
+                help="Display tool calls and retrieval debug info for development.",
+            )
+        else:
+            # No widgets here, so these have to be written back by hand.
+            memory_window = DEFAULT_MEMORY_WINDOW
+            show_diagnostics = False
+            st.session_state.memory_window = memory_window
+            st.session_state.show_diagnostics = show_diagnostics
+
+        st.space("small")
+        _render_outline()
 
         st.space("medium")
-        st.caption("Dr. Wenjun Gu · Goizueta Business School")
-        st.caption("wenjun.gu@emory.edu")
+        _render_footer()
 
     return {
         "response_mode": response_mode,
@@ -202,7 +268,7 @@ def update_session_stats():
 
 def get_sidebar_settings():
     return {
-        "response_mode": st.session_state.get("response_mode", "Teach me step-by-step"),
+        "response_mode": st.session_state.get("response_mode", DEFAULT_RESPONSE_MODE),
         "memory_window": st.session_state.get("memory_window", DEFAULT_MEMORY_WINDOW),
         "show_diagnostics": st.session_state.get("show_diagnostics", False),
     }

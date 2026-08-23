@@ -14,11 +14,6 @@ EVAL_CASES = [
         "must_include": ["**Answer**", "Check yourself"],
     },
     {
-        "response_mode": "Hint-first",
-        "query": "Help me solve this step by step but do not give the answer yet.",
-        "must_include": ["**Hints**", "**Your turn**"],
-    },
-    {
         "response_mode": "Teach me step-by-step",
         "query": "I need help interpreting model output.",
         "must_include": ["**Step 1**"],

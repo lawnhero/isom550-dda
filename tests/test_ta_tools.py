@@ -173,3 +173,58 @@ def test_course_documents_needs_a_topic_or_a_filter():
     raw = tools["answer_course_documents"].invoke({"query": ""})
     assert json.loads(raw)["abstained"] is True
     assert "topic or a date" in _only_step(artifacts).static_answer
+
+
+# ---- compound turns -----------------------------------------------------------
+from utils.ta_tools import COMPOUND_SECTION_WORDS, ToolStep, StreamSpec, annotate_compound_turn
+
+
+def _streamed(tool, covers, chain="x"):
+    step = ToolStep(step_id=tool, tool_name=tool, covers=covers)
+    step.stream_spec = StreamSpec(chain_key=chain, payload={})
+    return step
+
+
+def test_single_section_is_not_a_compound_turn():
+    only = _streamed("answer_concept", "what R-squared means")
+    assert annotate_compound_turn([only]) == 0
+    assert "turn_context" not in only.stream_spec.payload
+
+
+def test_a_refusal_next_to_one_answer_is_not_compound():
+    refusal = ToolStep(step_id="r", tool_name="answer_course_documents", static_answer="Not found.")
+    answer = _streamed("answer_concept", "what R-squared means")
+    assert annotate_compound_turn([refusal, answer]) == 0
+
+
+def test_compound_turn_tells_each_part_about_the_others():
+    jmp = _streamed("answer_software", "how to run a regression in JMP")
+    r2 = _streamed("answer_concept", "how to interpret R-squared")
+    assert annotate_compound_turn([jmp, r2]) == 2
+
+    first = jmp.stream_spec.payload["turn_context"]
+    second = r2.stream_spec.payload["turn_context"]
+    assert first.startswith("THIS IS PART 1 OF 2")
+    assert "Part 1 (you): how to run a regression in JMP" in first
+    assert "Part 2 (written separately): how to interpret R-squared" in first
+    assert "not the last part" in first and "No closing question" in first
+    assert second.startswith("THIS IS PART 2 OF 2")
+    assert "Part 1 (written separately): how to run a regression in JMP" in second
+    assert "You are the last part" in second
+    assert f"under {COMPOUND_SECTION_WORDS} words" in first
+
+
+def test_every_tool_records_what_its_section_covers():
+    session = practice.start("Q: fold back the tree", "Decision basics")
+    tools, artifacts = _tools(practice_session=session, attachment_text="")
+    tools["answer_course_facts"].invoke({"query": "When is quiz 1 due?"})
+    tools["answer_software"].invoke({"query": "How do I open Fit Model?"})
+    tools["generate_practice"].invoke({"topic": "Decision basics"})
+    tools["coach_practice"].invoke({"query": "stuck", "request": "hint"})
+    tools["check_attempt"].invoke({"attempt_text": "EV = 0.4*100", "topic": "Decision basics"})
+    covers = {s.tool_name: s.covers for s in artifacts.steps.values()}
+    assert covers["answer_course_facts"] == "When is quiz 1 due?"
+    assert covers["answer_software"] == "How do I open Fit Model?"
+    assert "practice question on Decision basics" in covers["generate_practice"]
+    assert "practice question on screen" in covers["coach_practice"]
+    assert "attempt" in covers["check_attempt"]

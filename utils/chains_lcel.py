@@ -28,12 +28,29 @@ SHARED_POLICY = (
     "to Canvas or the instructor."
 )
 
-# Direct / hint-first / step-by-step headings. Keep these strings identical
-# across class_chain and facts_chain (Direct only) so a two-section turn does
-# not stack different vocabularies.
+# Compound turns. When the router calls two tools for one question ("how do I
+# run it, and what does R-squared mean"), each chain writes its section alone
+# and used to have no idea the other existed: the JMP section explained
+# R-squared before the concept section did, both ended with their own sign-off
+# question, and the first ran 350+ words. `turn_context` is the block that
+# tells a chain it is part N of M, what the other parts cover, and the rules
+# that override its own length and ending rules for the duration. It is
+# written by ta_tools.annotate_compound_turn and is "" on single-tool turns,
+# which renders as an empty line and changes nothing.
+def _turn_context(payload):
+    return payload.get("turn_context") or ""
+
+
+# Direct / step-by-step headings. Keep these strings identical across
+# class_chain and facts_chain (Direct only) so a two-section turn does not
+# stack different vocabularies.
 #   Direct:        **Answer** / **Check yourself**
-#   Hint-first:    **Hints** / **Your turn**
 #   Step-by-step:  **Step 1** / **Checkpoint**
+#
+# There is no hint-first mode any more. It was used once in 508 logged
+# turns, and withholding an EXPLANATION is the wrong place to be cagey: the
+# tutor holds back answers where that teaches something -- on the open
+# practice question, through coach_practice -- not on "what does this mean".
 #
 # concept_chain deliberately does NOT share the step-by-step pair. It answers
 # first and appends **How to work through it**, because "what does this mean"
@@ -374,13 +391,6 @@ Response contract (strict):
      <concise answer in <=120 words>
      **Check yourself**
      - <one short verification action>
-   - Hint-first: use this exact structure:
-     **Hints**
-     - Hint 1: <hint>
-     - Hint 2: <optional hint>
-     **Your turn**
-     - <one action student should do next>
-     (No final answer unless student explicitly asks again.)
    - Teach me step-by-step: use this exact structure:
      **Step 1**
      - Do: <single actionable step>
@@ -393,6 +403,8 @@ Response contract (strict):
    - One next action
 5) Keep total response <=180 words, with short bullets when useful.
 6) End with one brief follow-up question that moves learning forward.
+
+{turn_context}
 
 Recent chat:
 {chat_history}
@@ -407,6 +419,7 @@ Response:"""
         {
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
             "response_mode": itemgetter("response_mode"),
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
@@ -457,6 +470,8 @@ You can verify at <where to verify, with the Canvas link when the context has on
 COURSE CONTEXT:
 {course_context}
 
+{turn_context}
+
 Recent chat:
 {chat_history}
 
@@ -470,6 +485,7 @@ Answer:"""
         {
             "course_context": itemgetter("course_context"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
             "query": itemgetter("query"),
         }
     )
@@ -516,8 +532,15 @@ Rules:
    the course uses for that task instead of answering for the other tool.
 7) Stay pointed at the analytics goal. Explain what the output means, briefly,
    not just where to click.
+8) Keep it under 200 words. Steps, not essays: a student with JMP open wants
+   the next click, and the analytics explanation belongs to the concept route.
+9) If no COURSE CONVENTIONS are listed, do not claim that the course expects a
+   particular option, report, or output. Describe the tool's default behaviour
+   and say the course has not specified a convention for this.
 
 {software_context}
+
+{turn_context}
 
 Recent chat:
 {chat_history}
@@ -532,6 +555,7 @@ Answer:"""
         {
             "software_context": itemgetter("software_context"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
             "query": itemgetter("query"),
         }
     )
@@ -570,8 +594,6 @@ Rules:
 4) State the document's content plainly first. Then adapt any FURTHER
    explanation to the response mode:
    - Direct answer: add a one-line summary of what matters most.
-   - Hint-first: after stating the requirements, ask one question that helps the
-     student decide their next step.
    - Teach me step-by-step: after stating the requirements, break them into an
      ordered plan of what to do first, second, third.
 5) Keep the answer under 200 words, except when the question asks you to list
@@ -582,6 +604,8 @@ Preferred response mode: {response_mode}
 
 COURSE DOCUMENTS:
 {context}
+
+{turn_context}
 
 Recent chat:
 {chat_history}
@@ -597,6 +621,7 @@ Answer:"""
             "context": itemgetter("context"),
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
             "response_mode": itemgetter("response_mode"),
         }
     )
@@ -655,10 +680,6 @@ Guidance policy (strict):
    - Direct answer:
      **Check yourself**
      - <one action that verifies they understood>
-   - Hint-first: state what the measure or concept IS, then stop short of
-     interpreting the student's own numbers:
-     **Your turn**
-     - <one question that leads them to the interpretation>
    - Teach me step-by-step: after the answer, give an ordered plan for applying
      it:
      **How to work through it**
@@ -678,6 +699,8 @@ Guidance policy (strict):
    something you could simply include -- if you can give the example now, give
    it now rather than asking whether they would like one.
 
+{turn_context}
+
 Recent chat:
 {chat_history}
 
@@ -695,6 +718,7 @@ Response:"""
             "context": itemgetter("context"),
             "query": itemgetter("query"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
             "response_mode": itemgetter("response_mode"),
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
@@ -755,6 +779,8 @@ Use this structure:
 **Hint**
 - <one actionable hint>
 
+{turn_context}
+
 Recent chat:
 {chat_history}
 
@@ -768,6 +794,7 @@ Response:"""
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
             "previous_question": itemgetter("previous_question"),
             "concept_context": itemgetter("concept_context"),
         }
@@ -810,6 +837,8 @@ Rules:
 3) Keep total response <=180 words.
 4) End with one short follow-up question.
 
+{turn_context}
+
 Recent chat:
 {chat_history}
 
@@ -827,6 +856,7 @@ Response:"""
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
         }
     )
     if vision:
@@ -885,6 +915,8 @@ Coaching policy (strict):
 5) Keep it under 120 words.
 6) End with one short question that invites their attempt.
 
+{turn_context}
+
 Recent chat:
 {chat_history}
 
@@ -901,6 +933,7 @@ Response:"""
             "request": itemgetter("request"),
             "question_block": itemgetter("question_block"),
             "chat_history": itemgetter("chat_history"),
+            "turn_context": _turn_context,
             "query": itemgetter("query"),
         }
     )
