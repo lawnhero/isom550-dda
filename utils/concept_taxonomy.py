@@ -161,20 +161,6 @@ def build_concept_filter(module: str, path=DEFAULT_PATH):
     return {"module": {"$eq": module}} if module else None
 
 
-def module_is_unwritten(module: str, path=DEFAULT_PATH) -> bool:
-    """True when the module exists but has no concept with a body yet.
-
-    This is the coverage signal distance cannot provide. A question about
-    logistic regression is topically close to every regression concept in the
-    index, so it scores like a good match; only the inventory knows there is
-    nothing there to have matched.
-    """
-    module = normalize_module(module, path)
-    if not module:
-        return False
-    return any(m["id"] == module and m["n_written"] == 0 for m in list_modules(path))
-
-
 def format_modules_for_prompt(path=DEFAULT_PATH) -> str:
     """The module list injected into the agent system prompt."""
     lines = []

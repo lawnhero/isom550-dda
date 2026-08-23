@@ -88,22 +88,6 @@ def query_db_connection():
     return client['user_queries_db']
 
 
-# function to store the query in the database
-def process_and_store_query(collection, **kwargs):
-    """Insert a query into the MongoDB collection."""
-    # Create a document to insert
-    document = {
-        "timestamp": datetime.now()
-    }
-    # add any additional fields to the document
-    document.update(kwargs)
-    
-    # Insert the document into the collection
-    result = collection.insert_one(document)
-    
-    return result.inserted_id
-
-
 def build_event_payload(
     event_type: str,
     session_id: str,
@@ -112,7 +96,6 @@ def build_event_payload(
     query: str = "",
     route_label: str = "",
     learning_objective: str = "",
-    learner_level: str = "",
     resolved: bool = True,
     metadata: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
@@ -127,7 +110,6 @@ def build_event_payload(
         "query": query,
         "route_label": route_label,
         "learning_objective": learning_objective,
-        "learner_level": learner_level,
         "resolved": resolved,
         "metadata": metadata or {},
     }

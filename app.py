@@ -1,5 +1,3 @@
-import queue
-import threading
 import time
 import traceback
 import uuid
@@ -11,7 +9,7 @@ from langchain_core.globals import set_verbose
 
 import utils.chains_lcel as chains
 import utils.ui as ui
-from utils.agent_graph import build_ta_agent, run_ta_turn
+from utils.router import build_ta_agent, run_ta_turn
 from utils.attachments import (
     IMAGE_LIMIT_NOTICE,
     MAX_IMAGES,
@@ -26,8 +24,7 @@ from utils.course_context import (
     get_software_context,
 )
 from utils import practice
-from utils.progress import PHASE_FAILED, PHASE_WRITING, ProgressReporter
-from utils.sidebar import sidebar, update_session_stats
+from utils.sidebar import sidebar
 import utils.llm_models as llms
 from utils.ta_tools import TurnArtifacts
 
@@ -70,7 +67,7 @@ mongo_db = query_db_connection()
 collection = mongo_db['ISOM 550']
 
 # 3. Setup LLM and chains
-main_tutor = llms.deepseekv4_with_grok_fallback
+main_tutor = llms.deepseek_pro_with_fallback
 # Facts, software steps and recaps: light, high-traffic work. Wrapped so a
 # DeepSeek outage degrades to a slower answer rather than to no deadline answer.
 light_tutor = llms.deepseek_flash_with_fallback
@@ -83,7 +80,7 @@ all_chains = chains.get_all_chains(
     # tutoring: reading a regression table out of a PNG is a different
     # capability from writing the explanation, and it should not change
     # every time the primary tutor is swapped.
-    vision_llm=llms.openai_gpt56_luna_vision,
+    vision_llm=llms.openai_gpt56_luna_full,
 )
 class_chain = all_chains['class_chain']
 
@@ -101,55 +98,6 @@ def _parse_chat_input(raw_input):
     return text, files
 
 
-def _status_sink(status):
-    """Paint one progress event onto the live st.status container.
-
-    The label is the headline -- what the tutor is doing right now -- and the
-    detail lines accumulate inside the (collapsed) container as a record of how
-    the answer was actually put together: which tool the router picked, what it
-    searched for, how many passages came back, which sources they were.
-
-    Phrasing for tool phases comes from ui.working_label, i.e. the same table as
-    the provenance badge under the finished answer, so the two cannot drift.
-
-    Debug events (tool names, raw router arguments) are dropped unless
-    diagnostics are on: a student reading "Chose answer_concept (query=...)"
-    learns nothing the next line does not say in plain language.
-    """
-    def sink(event):
-        if event.debug and not st.session_state.get("show_diagnostics"):
-            return
-        label = event.label or ui.working_label(event.tools)
-        if label:
-            suffix = "..." if event.state == "running" else ""
-            status.update(label=f"{label}{suffix}", state=event.state)
-        if event.detail:
-            status.caption(event.detail)
-
-    return sink
-
-
-def _stream_answer(stream, progress=None, label=PHASE_WRITING):
-    """Stream tutor text; announce the phase on the first token."""
-    if progress is None:
-        return ui.write_stream_md(stream)
-
-    placeholder = st.empty()
-    chunks = []
-    announced = False
-    for chunk in stream:
-        text = chunk if isinstance(chunk, str) else getattr(chunk, "content", None) or str(chunk)
-        chunks.append(text)
-        # Once, on the first real token. Emitting per chunk re-rendered the
-        # status widget on every token and grew the turn's event log by one
-        # entry per token, for a label that never changed after the first.
-        if not announced and text:
-            progress.emit(label=label)
-            announced = True
-        placeholder.markdown(ui.escape_md_dollars("".join(chunks)))
-    return "".join(chunks)
-
-
 # A section whose chain failed while the others succeeded. The turn goes on;
 # the student loses one part, not the whole answer, and is told which.
 SECTION_FAILED = (
@@ -157,113 +105,53 @@ SECTION_FAILED = (
     "own and I'll try once more."
 )
 
-_SECTION_DONE = object()
 
+def _stream_sections(answerable, status):
+    """Stream every prepared section, one after another, in router order.
 
-def _stream_sections(answerable, progress):
-    """Stream every prepared section at once, painted in router order.
-
-    Returns `(texts, failures)`, one entry per step.
-
-    The sections used to stream one after another, so on a two-tool turn the
-    second chain -- whose payload had been ready since routing finished --
-    sat idle for the whole of the first one's stream. Measured on "how do I
-    run a regression in JMP and what does R-squared mean": 6.2 s of JMP steps
-    before the first R-squared token. Both chains now run together; wall
-    clock is the longest section rather than the sum.
-
-    Streamlit will only paint from the script thread, so the chains run in
-    workers that push chunks onto ONE queue, and this thread drains it and
-    writes each chunk into its section's placeholder. The placeholders are
-    created up front, in order, so sections stay where the router put them
-    no matter which chain is faster. Badges and sources are drawn into each
-    section's container once everything has finished.
+    Returns `(texts, failures)`, one entry per step. Each section gets its own
+    container so the badge and sources can be drawn under it once its text has
+    finished; the same footer the transcript redraws (see _render_section), so
+    the live turn and its replay cannot drift.
     """
-    slots = []
+    texts = []
+    failures = []
     for position, step in enumerate(answerable):
         if position:
             st.space("small")
-        container = st.container()
-        with container:
-            placeholder = st.empty()
-        slots.append((step, container, placeholder))
-
-    inbox: "queue.Queue" = queue.Queue()
-
-    def worker(index, chain, payload):
-        try:
-            for chunk in chain.stream(payload):
-                text = (
-                    chunk if isinstance(chunk, str)
-                    else getattr(chunk, "content", None) or str(chunk)
+        with st.container():
+            if step.stream_spec is None:
+                text = step.static_answer
+                ui.md(text)
+                failures.append(None)
+            else:
+                chain = all_chains.get(step.stream_spec.chain_key)
+                if chain is None:
+                    raise ValueError(f"Unknown stream chain: {step.stream_spec.chain_key}")
+                status.update(
+                    label=f"Writing the {ui.route_meta(step.tool_name)['badge'].lower()} part..."
+                    if len(answerable) > 1 else "Writing your answer..."
                 )
-                inbox.put((index, text))
-            inbox.put((index, _SECTION_DONE))
-        except Exception as exc:  # delivered to the script thread, not raised here
-            inbox.put((index, exc))
-
-    texts = [""] * len(slots)
-    failures = [None] * len(slots)
-    running = 0
-    for index, (step, container, placeholder) in enumerate(slots):
-        if step.stream_spec is None:
-            texts[index] = step.static_answer
-            placeholder.markdown(ui.escape_md_dollars(step.static_answer))
-            continue
-        chain = all_chains.get(step.stream_spec.chain_key)
-        if chain is None:
-            raise ValueError(f"Unknown stream chain: {step.stream_spec.chain_key}")
-        threading.Thread(
-            target=worker, args=(index, chain, step.stream_spec.payload), daemon=True
-        ).start()
-        running += 1
-
-    if running > 1:
-        progress.emit(label=f"Writing {running} parts of your answer")
-    elif running:
-        progress.emit(label=PHASE_WRITING)
-
-    started = set()
-    while running:
-        index, item = inbox.get()
-        step, _, placeholder = slots[index]
-        if item is _SECTION_DONE:
-            running -= 1
-            continue
-        if isinstance(item, Exception):
-            running -= 1
-            failures[index] = item
-            print(f"[section {step.tool_name}] stream failed: {item!r}")
-            texts[index] = SECTION_FAILED
-            placeholder.markdown(texts[index])
-            progress.emit(detail=f"Could not write the {ui.route_meta(step.tool_name)['badge'].lower()} part")
-            continue
-        if not item:
-            continue
-        if index not in started:
-            started.add(index)
-            if len(slots) > 1:
-                progress.emit(
-                    detail=f"Writing the {ui.route_meta(step.tool_name)['badge'].lower()} part"
-                )
-        texts[index] += item
-        placeholder.markdown(ui.escape_md_dollars(texts[index]))
-
-    # Same footer the transcript redraws (see _render_section), so the live
-    # turn and its replay cannot drift.
-    for index, (step, container, _) in enumerate(slots):
-        with container:
+                try:
+                    text = ui.write_stream_md(chain.stream(step.stream_spec.payload))
+                    failures.append(None)
+                except Exception as exc:
+                    traceback.print_exc()
+                    text = SECTION_FAILED
+                    ui.md(text)
+                    failures.append(exc)
             ui.render_answer_footer(
                 step.tool_name,
                 step.retrieval_debug,
-                key=f"sources_live_{index}",
+                key=f"sources_live_{position}",
                 abstained=step.abstained,
                 weak=step.retrieval_quality == "weak",
             )
             if step.abstained:
-                ui.render_unresolved(get_course_links(), key=f"unresolved_live_{index}")
+                ui.render_unresolved(get_course_links(), key=f"unresolved_live_{position}")
+        texts.append(text)
 
-    streamed = [i for i, (step, _, _) in enumerate(slots) if step.stream_spec is not None]
+    streamed = [i for i, step in enumerate(answerable) if step.stream_spec is not None]
     if streamed and all(failures[i] is not None for i in streamed):
         # Nothing reached the student. Let the turn's fallback path answer
         # instead of leaving only apologies on screen.
@@ -387,7 +275,6 @@ def _render_ai_message(index: int, content: str, *, is_last: bool) -> None:
             # Greeting or clarifying turn: nothing to badge or rate.
             ui.md(content)
 
-        ui.render_recap(meta.get("recap", ""))
 
         if is_last and st.session_state.get("show_diagnostics") and meta.get("diagnostics"):
             ui.render_diagnostics(meta["diagnostics"], key=f"diag_{index}")
@@ -444,20 +331,6 @@ def _resolve_action(action: dict):
         _append_clarifying_turn(
             action["label"],
             "What would you like to practice? Pick a topic below or type it in the chat.",
-            "practice",
-            "topic",
-        )
-        return "", "", True
-
-    if intent == "practice_harder":
-        if topic:
-            return (
-                f"Generate a harder practice question on this ISOM 550 topic: {topic}. "
-                "Stay strictly on this topic; do not invent an unrelated scenario."
-            ), action["label"], False
-        _append_clarifying_turn(
-            action["label"],
-            "What topic should the harder practice question focus on?",
             "practice",
             "topic",
         )
@@ -635,22 +508,9 @@ def main():
                     ui.QUICK_ACTIONS, key_prefix="quick_action"
                 )
             else:
-                # Chips follow the route that answered the last turn: a
-                # deadline answer offers "what's due next", a practice question
-                # offers "check my work". A single fixed practice-oriented row
-                # used to appear after every answer regardless.
-                last_meta = _get_meta(last_index)
                 st.caption("What next?")
                 selected_action = ui.render_action_row(
-                    ui.follow_ups_for(
-                        last_meta.get("route", ""),
-                        abstained=last_meta.get("abstained", False),
-                        covered={
-                            s.get("route")
-                            for s in (last_meta.get("sections") or [])
-                        },
-                    ),
-                    key_prefix="follow_up",
+                    ui.FOLLOW_UPS, key_prefix="follow_up"
                 )
 
         chat_placeholder = "Ask a question, or attach a screenshot of your work..."
@@ -746,13 +606,10 @@ def main():
         f"{user_query}{attachment_note}{describe_images(images)}"
         f"{attachment_query_block(attachment_context)}"
     )
-    learning_profile = chains.build_learning_profile(
-        query=query_for_model,
-        response_mode=sidebar_settings["response_mode"],
-        chat_history=st.session_state.chat_history,
-    )
+    # Analytics label only (the weekly report groups turns by it); nothing
+    # about the prompts depends on it.
+    learning_objective = chains.infer_learning_objective(user_query)
 
-    update_session_stats()
 
     with st.chat_message("Human"):
         ui.md(display_user_text or user_query)
@@ -781,13 +638,14 @@ def main():
 
     with st.chat_message("AI", avatar=TA_AVATAR):
         # A status line rather than a bare skeleton: routing is a full LLM call
-        # before a single token of the answer appears, and "checking the course
-        # schedule" is both an honest progress signal and a chance for the
-        # student to notice a misroute before reading a wrong answer.
+        # before a single token of the answer appears, and "Looking up the
+        # course schedule" is both an honest progress signal and a chance for
+        # the student to notice a misroute before reading a wrong answer. The
+        # line is updated at three points: when the router has chosen, when
+        # writing starts, and when the turn is done.
         status = st.status("Reading your question...", type="compact")
-        # Every step of the turn reports through here: the router's choice of
-        # tool, each search and what it found, then the writing phase.
-        progress = ProgressReporter(sink=_status_sink(status))
+        status_label = ""
+        status_state = "complete"
         try:
             artifacts = TurnArtifacts()
             agent = build_ta_agent(
@@ -801,24 +659,19 @@ def main():
                 course_context=get_course_context(),
                 software_context=get_software_context(),
                 course_span=get_course_date_span(),
-                progress=progress,
                 memory_window=sidebar_settings["memory_window"],
                 images=images,
                 practice_session=st.session_state.get("practice_session"),
                 attachment_text=attachment_context,
             )
-            # Routing + hybrid retrieval happen inside run_ta_turn (agent +
-            # tools), and report their own progress as they go.
             turn_result = run_ta_turn(
                 agent=agent,
                 query=query_for_model,
                 chat_history=st.session_state.chat_history,
                 artifacts=artifacts,
                 memory_window=sidebar_settings["memory_window"],
-                progress=progress,
+                on_route=lambda names: status.update(label=f"{ui.working_label(names)}..."),
             )
-
-            print('-----turn_result: ', turn_result['tool_calls'])
 
             route_label = turn_result["route_label"]
             answerable = turn_result.get("answerable_steps") or []
@@ -830,20 +683,16 @@ def main():
                 # One section per tool call, in the order the model asked for
                 # them -- which mirrors the order the student asked. Each gets
                 # its own badge and its own sources, so a JMP walkthrough and a
-                # concept explanation are never merged under one label. The
-                # sections stream concurrently; see _stream_sections.
-                texts, _ = _stream_sections(answerable, progress)
+                # concept explanation are never merged under one label.
+                texts, _ = _stream_sections(answerable, status)
                 ai_response = "\n\n".join(t for t in texts if t)
             elif turn_result.get("answer"):
-                progress.emit(label=PHASE_WRITING)
+                # The router called no tool; its own reply is the answer.
                 ai_response = turn_result["answer"]
                 ui.md(ai_response)
             else:
-                progress.emit(
-                    detail="No tool prepared an answer — answering directly",
-                    tools=["agent_direct"],
-                )
-                ai_response = _stream_answer(
+                status.update(label="Answering directly...")
+                ai_response = ui.write_stream_md(
                     class_chain.stream(
                         chains.build_chain_payload(
                             query=query_for_model,
@@ -851,8 +700,7 @@ def main():
                             response_mode=effective_response_mode,
                             memory_window=sidebar_settings["memory_window"],
                         )
-                    ),
-                    progress=progress,
+                    )
                 )
 
             stream_ms = int((time.perf_counter() - stream_started) * 1000)
@@ -887,26 +735,20 @@ def main():
             # The turn collapses to one verdict: what was consulted, how much
             # of it, and how long it took. This is also the label the stored
             # status keeps, so the transcript reads the same as the live turn.
-            progress.emit(
-                label=ui.completion_label(
-                    [section["route"] for section in sections] or [route_label],
-                    source_count=len(retrieval_debug),
-                    seconds=time.perf_counter() - turn_started,
-                    abstained=abstained,
-                ),
-                state="complete",
+            status_label = ui.completion_label(
+                [section["route"] for section in sections] or [route_label],
+                source_count=len(retrieval_debug),
+                seconds=time.perf_counter() - turn_started,
+                abstained=abstained,
             )
+            status.update(label=status_label, state="complete")
 
         except Exception as e:
-            # Full trace to stderr, unbuffered: under a process manager stdout
-            # is block-buffered and a bare print(e) lost both the stack and,
-            # often, the message itself.
+            # Full trace to stderr: the exception text is for whoever is
+            # debugging, not the student. The label says the lookup failed and
+            # the fallback answer arrives underneath it.
             traceback.print_exc()
-            # The exception text is for whoever is debugging, not the student:
-            # the label already says the lookup failed, and the fallback answer
-            # arrives underneath it either way.
-            progress.emit(label=PHASE_FAILED, state="error")
-            progress.emit(detail=str(e), debug=True)
+            status.update(label="Course lookup failed", state="error")
             route_label = "fallback_class_chain"
             effective_response_mode = "Direct answer"
             diagnostics = {
@@ -914,9 +756,12 @@ def main():
                 "router_ms": 0, "router_text": "",
                 "stream_ms": 0, "route_label": "fallback_class_chain",
                 "response_mode": effective_response_mode, "abstained": False,
+                "error": str(e),
             }
+            status_state = "error"
             try:
-                ai_response_for_history = _stream_answer(
+                status.update(label="Answering without course materials...", state="error")
+                ai_response_for_history = ui.write_stream_md(
                     class_chain.stream(
                         chains.build_chain_payload(
                             query=query_for_model,
@@ -924,19 +769,15 @@ def main():
                             response_mode=effective_response_mode,
                             memory_window=sidebar_settings["memory_window"],
                         )
-                    ),
-                    progress=progress,
-                    label="Answering without course materials",
+                    )
                 )
-                progress.emit(
-                    label=ui.completion_label(
-                        ["fallback_class_chain"],
-                        seconds=time.perf_counter() - turn_started,
-                    ),
-                    state="error",
+                status_label = ui.completion_label(
+                    ["fallback_class_chain"],
+                    seconds=time.perf_counter() - turn_started,
                 )
+                status.update(label=status_label, state="error")
             except Exception as fallback_error:
-                # Both the agent and the fallback failed. Say so in the
+                # Both the router and the fallback failed. Say so in the
                 # transcript rather than letting a NameError take the app down.
                 print(fallback_error)
                 abstained = True
@@ -944,9 +785,8 @@ def main():
                     "I could not reach the tutoring service for that question. "
                     "Please try again in a moment."
                 )
-                progress.emit(
-                    label="Could not reach the tutoring service", state="error"
-                )
+                status_label = "Could not reach the tutoring service"
+                status.update(label=status_label, state="error")
                 ui.md(ai_response_for_history)
 
     # Said plainly, on the turn it applies to, rather than left for the student
@@ -1020,8 +860,7 @@ def main():
         response_mode=effective_response_mode,
         query=user_query,
         route_label=route_label,
-        learning_objective=learning_profile["learning_objective"],
-        learner_level=learning_profile["learner_level"],
+        learning_objective=learning_objective,
         resolved=not unresolved,
         metadata={
             "tools_used": tools_used,
@@ -1053,7 +892,7 @@ def main():
         diagnostics=diagnostics,
         attachment_notice=attachment_notice,
         retrieval_quality=retrieval_quality,
-        progress=progress.summary(),
+        progress={"label": status_label, "state": status_state},
     )
 
     st.rerun()

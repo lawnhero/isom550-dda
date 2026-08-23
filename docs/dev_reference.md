@@ -16,17 +16,19 @@ changes — they are transcribed from source, not aspirational.
 ```
 app.main()
   -> extract_attachments(uploaded_files)              [utils/attachments.py]
-  -> build_ta_agent(...)                                [utils/agent_graph.py]
+  -> build_ta_agent(...)                                [utils/router.py]
        -> build_ta_tools(...)                           [utils/ta_tools.py]
-       -> LangGraph: agent -> tools -> (retry|END)
-  -> run_ta_turn(agent, query, chat_history, artifacts)
-       -> agent node: router LLM picks 0..N tools
-       -> tools node: each tool call PREPARES a StreamSpec on its ToolStep,
-          returns a JSON receipt (never the answer text) to the router
+       -> agent_llm.bind_tools(tools)
+  -> run_ta_turn(agent, query, chat_history, artifacts, on_route)
+       -> ONE model call: the router returns 0..N tool calls (and no student text
+          unless it returns zero)
+       -> on_route(tool names)  -> app updates the st.status label
+       -> each tool call runs IN ORDER on the main thread; each PREPARES a
+          StreamSpec on its ToolStep and returns a JSON receipt
        -> annotate_compound_turn(steps)                 [if >=2 sections]
-  -> app._stream_sections(answerable_steps, progress)
-       -> one worker thread per section, streams chains_lcel.<chain>.stream(payload)
-       -> app.ui.render_answer_footer(...) per section (badge, sources, thumbs)
+  -> app._stream_sections(answerable_steps, status)
+       -> for each section, in router order: chains_lcel.<chain>.stream(payload),
+          then ui.render_answer_footer(...) (badge, sources, thumbs)
   -> practice session state written (utils/practice.py)
   -> event logged to MongoDB (utils/utils.py)
   -> st.session_state.message_meta[index] written, st.rerun()
@@ -40,11 +42,11 @@ never sees retrieved text; each tool returns only a receipt
 
 ---
 
-## 2. Router agent
+## 2. Router
 
-**File:** `utils/agent_graph.py`
-**Model:** `agent_llm` = `llms.openai_gpt56_luna` (no fallback — see audit A4)
-**Graph:** `agent -> tools -> (agent again ONLY on a failed tool call) -> END`, hand-built (not the prebuilt ReAct agent) so the extra `tools -> agent` round trip only happens on retry.
+**File:** `utils/router.py`
+**Model:** `agent_llm` = `llms.openai_gpt56_luna` (no fallback — a routing failure drops the turn to `class_chain`)
+**Control flow:** one `model.invoke(messages)`; then `for call in reply.tool_calls: tools[name].invoke(args)`. No loop, no retry: a tool that raises is logged and its section is dropped; the other sections still stream.
 
 | | |
 |---|---|
@@ -52,16 +54,16 @@ never sees retrieved text; each tool returns only a receipt
 | **`query_for_model` composition** (built in `app.py`) | `user_query + attachment_note + describe_images(images) + attachment_query_block(attachment_text)` |
 | **Output** | Zero or more tool calls (name + args), OR plain text (shown to student only when no tool was called) |
 | **Tools bound** | The 7 `StructuredTool`s from `build_ta_tools` (§3) |
-| **Retry budget** | `recursion_limit=8` — one round is 3 graph steps (agent→tools→agent), so this allows ~2 rounds |
-| **`run_ta_turn` return dict** | `steps, answerable_steps, answer, tools_used, tool_calls, route_label, sources, retrieval_debug, practice_topic, abstained, retrieval_quality, messages, router_ms, router_text, trace` |
+| **`on_route`** | Optional callback, called with the tool names after the router answers and before any tool runs. `app.py` uses it to set the status label (`ui.working_label`) |
+| **`run_ta_turn` return dict** | `steps, answerable_steps, answer, tools_used, tool_calls, route_label, sources, retrieval_debug, practice_topic, abstained, retrieval_quality, router_ms, router_text, trace` |
 
-**System prompt structure** (`AGENT_SYSTEM_PROMPT`, `utils/agent_graph.py:31`): tool-selection guide, then 9 numbered rules — the deadline gate (rule 1), "what did we cover" overview-vs-detail split (rule 2), assignment-vs-concept (rule 3), software-vs-concept + compound-question instruction (rule 4), practice/coach/check-attempt boundaries (rule 5), attachment handling (rule 6), dispatcher-not-writer (rule 7), no-tool-call behavior (rule 8), tone (rule 9). Appended at call time: the Tier B module list from `concept_taxonomy.format_modules_for_prompt()`.
+**System prompt structure** (`AGENT_SYSTEM_PROMPT`, `utils/router.py`): tool-selection guide, then 9 numbered rules — the deadline gate (rule 1), "what did we cover" overview-vs-detail split (rule 2), assignment-vs-concept (rule 3), software-vs-concept + compound-question instruction (rule 4), practice/coach/check-attempt boundaries (rule 5), attachment handling (rule 6), dispatcher-not-writer (rule 7), no-tool-call behavior (rule 8), tone (rule 9). Appended at call time: the Tier B module list from `concept_taxonomy.format_modules_for_prompt()`.
 
 ---
 
 ## 3. Tools (`utils/ta_tools.build_ta_tools`)
 
-All 7 are closures built fresh per turn, sharing `chat_history`, `response_mode`, `course_context`, `software_context`, `course_span`, `practice_session`, `attachment_text`, `images`, `artifacts`, `progress` via the closure. Each tool: (1) claims a `ToolStep` via `artifacts.new_step(name)`, (2) either sets `step.static_answer` (abstain / ask-for-input) or `step.stream_spec = StreamSpec(chain_key, payload)`, (3) returns a JSON receipt via `_serialize_tool_result`.
+All 7 are closures built fresh per turn, sharing `chat_history`, `response_mode`, `course_context`, `software_context`, `course_span`, `practice_session`, `attachment_text`, `images`, `artifacts` via the closure. Each tool: (1) claims a `ToolStep` via `artifacts.new_step(name)`, (2) either sets `step.static_answer` (abstain / ask-for-input) or `step.stream_spec = StreamSpec(chain_key, payload)`, (3) returns a JSON receipt via `_serialize_tool_result`.
 
 ### 3.1 `answer_course_facts(query: str)`
 | | |
@@ -101,7 +103,7 @@ All 7 are closures built fresh per turn, sharing `chat_history`, `response_mode`
 | Abstains when | `RetrievalResult.quality == "none"` |
 | `practice_topic` | `_concept_focus(found)` — the retrieved concept's own title (strong match) or its module label (weak match), NOT a keyword-inferred label |
 | Chain | `concept_chain` (or `_vision`) |
-| Payload keys | `context, query, chat_history, response_mode, learning_objective, learner_level, attempt_check, turn_context` (+ `images` if vision) |
+| Payload keys | `context, query, chat_history, response_mode, turn_context` (+ `images` if vision) |
 | `step.covers` | the query verbatim |
 
 ### 3.5 `generate_practice(topic: str, difficulty: str = "same")`
@@ -113,7 +115,7 @@ All 7 are closures built fresh per turn, sharing `chat_history`, `response_mode`
 | Grounding | `search_concepts(contents_db, topic, module=module_id, top_k=1)`; module parsed from a `"Module: Topic"` focus string via `concept_taxonomy.split_focus`. Grounds only if `best_distance <= bar`, where `bar = PRACTICE_GROUND_MAX_DISTANCE_IN_MODULE (1.2)` with a module filter or `PRACTICE_GROUND_MAX_DISTANCE (1.0)` without — short topic strings score closer to everything, so this needs a tighter bar than answering |
 | `probable_misroute` (trace only, not blocking) | true when a practice session is active AND `hints_given > 0` — student likely said "I'm stuck", not "give me another" |
 | Chain | `practice_chain` |
-| Payload keys | `topic, difficulty, learning_objective, learner_level, chat_history, previous_question, concept_context, turn_context` |
+| Payload keys | `topic, difficulty, chat_history, previous_question, concept_context, turn_context` |
 | `previous_question` | `practice.question_of(practice_session)` — so "harder" escalates instead of repeating |
 | `step.covers` | `f"a new practice question on {topic}"` |
 
@@ -124,7 +126,7 @@ All 7 are closures built fresh per turn, sharing `chat_history`, `response_mode`
 | Abstains when | `not practice.is_active(practice_session)` → static "no practice question open" |
 | `request` resolution | `practice.effective_request(session, request)` — escalates a bare `"hint"` to `"worked_step"` once `hints_given >= practice.MAX_HINTS (3)` |
 | Chain | `coach_chain` |
-| Payload keys | `topic, learner_level, request, question_block, chat_history, query, turn_context` |
+| Payload keys | `topic, request, question_block, chat_history, query, turn_context` |
 | `question_block` | `practice.prompt_block(session)` — the held question + hint/attempt counts |
 | `step.covers` | `f"help ({resolved}) with the practice question on screen"` |
 
@@ -137,7 +139,7 @@ All 7 are closures built fresh per turn, sharing `chat_history`, `response_mode`
 | Topic default | `chains.infer_topic_from_history(chat_history)` if empty |
 | `question` payload | `practice.question_of(session) or NO_HELD_QUESTION` — an explicit "no practice question open, grade the attempt on its own terms" placeholder, not silence |
 | Chain | `check_chain` (or `_vision`) |
-| Payload keys | `topic, attempt_text, question, learning_objective, learner_level, chat_history, turn_context` (+ `images` if vision) |
+| Payload keys | `topic, attempt_text, question, chat_history, turn_context` (+ `images` if vision) |
 | `step.covers` | `f"feedback on the student's attempt ({topic})"` |
 
 ### 3.8 Tool receipt (what the router sees)
@@ -164,8 +166,8 @@ Every chain is `RunnableParallel(setup) | ChatPromptTemplate | llm | StrOutputPa
 | `check_chain`(`_vision`) | `check_attempt` | main | held question or `NO_HELD_QUESTION` | n/a |
 
 ### 4.1 `class_chain(llm)`
-- **Input keys:** `query, chat_history, turn_context, response_mode, learning_objective, learner_level, attempt_check`
-- **Output shape:** varies by `response_mode` — `**Answer**/**Check yourself**` (Direct), `**Hints**/**Your turn**` (Hint-first), `**Step 1**/**Checkpoint**` (Teach step-by-step); rubric block appended if `attempt_check == "yes"`. ≤180 words.
+- **Input keys:** `query, chat_history, turn_context, response_mode`
+- **Output shape:** varies by `response_mode` — `**Answer**/**Check yourself**` (Direct), `**Step 1**/**Checkpoint**` (Teach step-by-step). ≤180 words.
 - **Built from:** `build_chain_payload(query, chat_history, response_mode, context="", memory_window)` in `chains_lcel.py`.
 
 ### 4.2 `facts_chain(llm)`
@@ -182,25 +184,25 @@ Every chain is `RunnableParallel(setup) | ChatPromptTemplate | llm | StrOutputPa
 - **Output shape:** reports document content plainly first (names the document + Canvas link), THEN adapts only the follow-on explanation to `response_mode`. Under 200 words unless asked to list/summarise multiple documents.
 
 ### 4.5 `concept_chain(llm, vision=False)`
-- **Input keys:** `context, query, chat_history, turn_context, response_mode, learning_objective, learner_level, attempt_check` (+ `images` if vision)
+- **Input keys:** `context, query, chat_history, turn_context, response_mode` (+ `images` if vision)
 - **Context shape it expects:** up to 3 labelled parts per concept — instructor explanation, `"How to phrase it: ..."`, `"Common student mistake: ..."` (see `retrieval.concept_payload`)
 - **Output shape:** answers the question first in plain prose (never opens with an instruction), THEN response-mode-specific addendum: `**Check yourself**` (Direct), `**Your turn**` (Hint-first, stops short of interpreting), `**How to work through it**` numbered plan (step-by-step). Answer ≤120 words, whole reply ≤200.
 
 ### 4.6 `practice_chain(llm)`
-- **Input keys:** `topic, difficulty, learning_objective, learner_level, chat_history, turn_context, previous_question, concept_context`
+- **Input keys:** `topic, difficulty, chat_history, turn_context, previous_question, concept_context`
 - **Output shape:** `**Practice question**` (scenario) / `**Hint**`. ≤180 words. Difficulty rubric: easier = clean numbers + name the measure; same = same demand, new scenario; harder = extra step/distractor/justify-the-method. Must not reuse `previous_question`'s scenario/numbers. If `concept_context` is present, drill exactly that skill/misconception in the instructor's framing; never quote the note's labels to the student.
 
 ### 4.7 `check_chain(llm, vision=False)`
-- **Input keys:** `topic, attempt_text, question, learning_objective, learner_level, chat_history, turn_context` (+ `images` if vision)
+- **Input keys:** `topic, attempt_text, question, chat_history, turn_context` (+ `images` if vision)
 - **Output shape:** `**What is correct**` / `**What to fix**` / `**Next action**`, ≤180 words. Grades against `question` when it's a real held question; when it's `NO_HELD_QUESTION`, infers the task from the attempt + chat and asks one clarifying question if genuinely unclear rather than guessing.
 
 ### 4.8 `coach_chain(llm)`
-- **Input keys:** `topic, learner_level, request, question_block, chat_history, turn_context, query`
+- **Input keys:** `topic, request, question_block, chat_history, turn_context, query`
 - **No vision build** — a photographed attempt goes to `check_attempt`, not here.
 - **Output shape:** exactly one of `**Hint**` (nudge, no calculation), `**What the question is asking**` (clarify, no movement toward the answer), `**One step, worked**` (worked_step, stops short of the result), selected by `request`. Never gives the final answer even if asked outright. ≤120 words, ends with a question inviting the attempt.
 
 ### 4.9 `get_all_chains(main_llm, light_llm, vision_llm=None)`
-Returns the dict keyed exactly as above plus `check_chain_vision`, `software_chain_vision`, `concept_chain_vision`. `vision_llm` defaults to `main_llm` if not given. **Note:** `recap_chain` (session-summary card) has been removed from this module — `app.py` no longer calls it; `ui.render_recap` is now effectively dead code fed an always-empty value.
+Returns the dict keyed exactly as above plus `check_chain_vision`, `software_chain_vision`, `concept_chain_vision`. `vision_llm` defaults to `main_llm` if not given.
 
 ### 4.10 Shared building blocks
 - `DAYTON_PERSONA` — one-line persona string, prepended to every template.
@@ -216,10 +218,10 @@ Returns the dict keyed exactly as above plus `check_chain_vision`, `software_cha
 
 | Name in app.py | Wraps | Used by |
 |---|---|---|
-| `main_tutor` | `llms.deepseekv4_with_grok_fallback` (`deepseek-v4-pro` → `grok-4.5`) | `class_chain, doc_chain, concept_chain, practice_chain, check_chain, coach_chain` |
+| `main_tutor` | `llms.deepseek_pro_with_fallback` (`deepseek-v4-pro` → `gpt-5.6-luna`) | `class_chain, doc_chain, concept_chain, practice_chain, check_chain, coach_chain` |
 | `light_tutor` | `llms.deepseek_flash_with_fallback` (`deepseek-v4-flash` → `gpt-5.6-luna`) | `facts_chain, software_chain` |
 | `agent_llm` | `llms.openai_gpt56_luna` (`gpt-5.6-luna`, `ROUTER_MAX_TOKENS=900`, no fallback) | router only |
-| `vision_llm` | `llms.openai_gpt56_luna_vision` (full token budget) | `*_chain_vision` variants |
+| `vision_llm` | `llms.openai_gpt56_luna_full` (full token budget; also the fallback target for both DeepSeek wrappers) | `*_chain_vision` variants |
 
 `ModelWithFallback.stream`/`astream` pull the first chunk inside the `try` (a generator function can't raise at call time) — see `tests/test_llm_fallback.py`.
 
@@ -227,11 +229,11 @@ Returns the dict keyed exactly as above plus `check_chain_vision`, `software_cha
 
 ## 6. Compound turns
 
-**File:** `utils/ta_tools.annotate_compound_turn`, called from `agent_graph.run_ta_turn` right after `answerable_steps` is computed.
+**File:** `utils/ta_tools.annotate_compound_turn`, called from `router.run_ta_turn` right after `answerable_steps` is computed.
 
 - Triggers when ≥2 `ToolStep`s have a `stream_spec` (static-answer-only steps, e.g. an abstention next to one real answer, do NOT count).
 - Writes `step.stream_spec.payload["turn_context"]` for every streamed step: `"THIS IS PART N OF M..."`, one line per part naming what it covers (`step.covers`, falling back to the route's badge label), then rules — open with a ≤6-word bold heading, cover only your part, ≤`COMPOUND_SECTION_WORDS` (150) words, no greeting, only the LAST part ends with a follow-up question.
-- Rendering: `app._stream_sections` starts one worker thread per section (all feeding one queue), paints placeholders in router order concurrently — wall clock is `max(sections)`, not `sum(sections)`. A section whose chain raises shows `SECTION_FAILED` and the turn continues; if every section fails, the exception propagates to the outer `except` and the turn falls to `class_chain`.
+- Rendering: `app._stream_sections` streams the sections one after another in router order, each in its own container with its own footer. A section whose chain raises shows `SECTION_FAILED` and the turn continues; if every section fails, the exception propagates to the outer `except` and the turn falls to `class_chain`.
 
 ---
 

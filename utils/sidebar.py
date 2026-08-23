@@ -259,16 +259,3 @@ def sidebar():
         "show_diagnostics": show_diagnostics,
     }
 
-def update_session_stats():
-    """Update session statistics (call from main app)."""
-    if 'total_queries' in st.session_state:
-        st.session_state.total_queries += 1
-    else:
-        st.session_state.total_queries = 1
-
-def get_sidebar_settings():
-    return {
-        "response_mode": st.session_state.get("response_mode", DEFAULT_RESPONSE_MODE),
-        "memory_window": st.session_state.get("memory_window", DEFAULT_MEMORY_WINDOW),
-        "show_diagnostics": st.session_state.get("show_diagnostics", False),
-    }

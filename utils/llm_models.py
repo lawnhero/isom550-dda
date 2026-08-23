@@ -1,9 +1,6 @@
-import os
-
 from dotenv import load_dotenv
 from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from pydantic import Field
 
@@ -117,6 +114,13 @@ def create_model_with_fallback(
 # what the student typed.
 ROUTER_MAX_TOKENS = 900
 
+# Two providers, two keys: OPENAI_API_KEY and DEEPSEEK_API_KEY.
+#
+# GPT Luna does the routing (tool calling) and is the fallback for both
+# DeepSeek tutors. DeepSeek V4 writes the answers: Pro for the tutoring chains,
+# Flash for the light, high-traffic routes (facts, software steps).
+
+# Dispatch build: tool calling, with a budget sized for tool-call JSON.
 openai_gpt56_luna = ChatOpenAI(
     temperature=TEMPERATURE,
     model="gpt-5.6-luna",
@@ -124,44 +128,15 @@ openai_gpt56_luna = ChatOpenAI(
     reasoning_effort="none",  # required for /v1/chat/completions + tool calling
 )
 
-# Back-compat alias for agent dispatch and haiku/deepseek fallbacks.
-openai_gpt4o_mini = openai_gpt56_luna
-
-# Vision route. Every screenshot turn is pinned here rather than to the usual
-# tutoring model: the instance above is the dispatch build with a tool-calling
-# budget, and a "check my JMP output" answer needs the full budget plus room
-# to transcribe what it read back to the student first.
-openai_gpt56_luna_vision = ChatOpenAI(
+# Full-budget build of the same model. Every screenshot turn is pinned here
+# (transcribing a regression table back to the student needs the room), and
+# it is what both DeepSeek wrappers fall back to.
+openai_gpt56_luna_full = ChatOpenAI(
     temperature=TEMPERATURE,
     model="gpt-5.6-luna",
     max_tokens=MAX_TOKENS,
     reasoning_effort="none",
 )
-
-openai_4o_mini_json = ChatOpenAI(
-    temperature=TEMPERATURE,
-    model="gpt-4o-mini",
-    max_tokens=300,
-    model_kwargs={"response_format": {"type": "json_object"}},
-)
-
-openai_gpt4o = ChatOpenAI(
-    temperature=0.1,
-    model="gpt-4o",
-)
-
-# Primary tutoring model via xAI's OpenAI-compatible API. Requires XAI_API_KEY.
-grok_4_5 = ChatOpenAI(
-    model="grok-4.5",
-    temperature=TEMPERATURE,
-    max_tokens=MAX_TOKENS,
-    api_key=os.getenv("XAI_API_KEY"),
-    base_url="https://api.x.ai/v1",
-)
-
-# DeepSeek V4 via langchain-deepseek. Requires DEEPSEEK_API_KEY.
-_DEEPSEEK_THINKING = {"thinking": {"type": "enabled"}
-, "reasoning_effort": "low"}
 
 deepseek_v4_pro = ChatDeepSeek(
     model="deepseek-v4-pro",
@@ -177,42 +152,15 @@ deepseek_v4_flash = ChatDeepSeek(
     extra_body={"thinking": {"type": "disabled"}},
 )
 
-# Fallback tutoring model (Anthropic Sonnet 5).
-# Sonnet 5 rejects temperature/top_p/top_k; omit sampling params.
-# Disable adaptive thinking for lower latency/cost on fallback turns.
-claude_sonnet_5 = ChatAnthropic(
-    model="claude-sonnet-5",
-    max_tokens=MAX_TOKENS,
-    thinking={"type": "disabled"},
-)
-
-# Main tutoring LLM: Grok 4.5 primary, Sonnet 5 fallback
-grok_with_sonnet_fallback = create_model_with_fallback(
-    primary_model=grok_4_5,
-    fallback_model=claude_sonnet_5,
-)
-
-# DeepSeek V4 Pro primary, grok fallback
-deepseekv4_with_grok_fallback = create_model_with_fallback(
+# Main tutoring model: concept, documents, practice, coach, check.
+deepseek_pro_with_fallback = create_model_with_fallback(
     primary_model=deepseek_v4_pro,
-    fallback_model=grok_4_5,
+    fallback_model=openai_gpt56_luna_full,
 )
 
+# Light routes: facts and software steps. Wrapped so a DeepSeek outage
+# degrades to a slower answer rather than to no deadline answer.
 deepseek_flash_with_fallback = create_model_with_fallback(
     primary_model=deepseek_v4_flash,
-    fallback_model=openai_gpt56_luna,
-)
-
-# Back-compat alias used by app.py / chain wiring
-claude_sonnet_with_fallback = grok_with_sonnet_fallback
-
-claude_haiku = ChatAnthropic(
-    model="claude-haiku-4-5",
-    temperature=TEMPERATURE,
-    max_tokens=MAX_TOKENS,
-)
-
-claude_haiku_with_fallback = create_model_with_fallback(
-    primary_model=claude_haiku,
-    fallback_model=openai_gpt56_luna,
+    fallback_model=openai_gpt56_luna_full,
 )

@@ -3,22 +3,21 @@
 Student-centered RAG chatbot for MBA Data and Decision Analytics.
 
 ## What is new in this revamp
-- Hybrid LangGraph agent with LCEL tutoring tools (`answer_course_facts`, `answer_course_documents`, `answer_software`, `answer_concept`, `generate_practice`, `coach_practice`, `check_attempt`)
+- One tool-calling router and seven LCEL tutoring tools (`answer_course_facts`, `answer_course_documents`, `answer_software`, `answer_concept`, `generate_practice`, `coach_practice`, `check_attempt`). A turn is: route → run the chosen tools in order → stream one answer section per tool → log
 - The practice question on screen is held in session state (`utils/practice.py`), so hints, "a harder one", and attempt checks all refer to the same question
 - One guidance switch ("Show me how to work through it", on by default) instead of three response modes; concept and assignment answers end with an ordered plan when it is on, and with one check when it is off. Facts, software steps and practice are unaffected either way
 - Bounded recent-chat window (8 messages) in every prompt
 - Hybrid retrieval with injected context and explicit source blocks for logistics answers
-- Objective-aware tutoring prompts with attempt-check feedback behavior
 - Event-based learning analytics with weekly report scripts
 - No student identity storage (anonymous `session_id` only)
 
 ## Chat UI (Streamlit 1.57+)
 - Every answer carries a provenance badge naming its source, so students can
   tell grounded course facts from general software knowledge
-- Follow-up chips are derived from the route that answered the last turn
+- Three follow-up chips after every answer: explain a concept, practice this, check my work
 - Sources expander on any retrieval-backed answer
 - Abstained answers get a recovery panel with the real Canvas link and a mailto
-- `st.status` progress line during routing; `st.feedback` thumbs per answer
+- `st.status` line naming what the tutor is looking up; `st.feedback` thumbs per answer
 - Pinned composer with `st.bottom` (chips + chat input stay visible)
 - Clarifying turns for topic/attempt, with a "Never mind" exit and automatic
   escape when the student types a new question instead of an answer
@@ -31,7 +30,7 @@ and the structural changes proposed but not yet implemented.
 ## App runtime
 - Main app (orchestration + session state): `app.py`
 - Presentation layer (badges, chips, sources, diagnostics): `utils/ui.py`
-- LangGraph agent (router + retry-only loop): `utils/agent_graph.py`
+- Router (one tool-calling model call, then the tools in order): `utils/router.py`
 - Agent tools (prepare a chain payload per call): `utils/ta_tools.py`
 - LCEL chains (one prompt per route): `utils/chains_lcel.py`
 - Tier A course context: `utils/course_context.py`
@@ -68,16 +67,16 @@ secret and pass it as the `debug` value instead.
 
 ## Models
 Wired in `app.py`; the instances live in `utils/llm_models.py`.
-- Main tutoring (`doc_chain`, `concept_chain`, `practice_chain`, `check_chain`, `coach_chain`): `deepseek-v4-pro` (fallback: `grok-4.5`)
+- Main tutoring (`doc_chain`, `concept_chain`, `practice_chain`, `check_chain`, `coach_chain`): `deepseek-v4-pro` (fallback: `gpt-5.6-luna`)
 - Light routes (`facts_chain`, `software_chain`): `deepseek-v4-flash` (fallback: `gpt-5.6-luna`)
-- Agent tool dispatch: `gpt-5.6-luna`, no fallback -- a dispatch failure drops the turn to the ungrounded `class_chain`
+- Routing (tool dispatch): `gpt-5.6-luna`, no fallback -- a routing failure drops the turn to the ungrounded `class_chain`
 - Screenshot turns: `gpt-5.6-luna` with the full token budget, regardless of which model is tutoring
 
 `ModelWithFallback` falls back on both `invoke` and `stream`; the stream case
 is caught on the first token, since a generator cannot fail at call time.
 
 ## Secrets and environment
-Local dev: create `.env` with `MONGODB_URI`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, and `XAI_API_KEY` (`ANTHROPIC_API_KEY` only if you switch a chain to a Claude model).
+Local dev: create `.env` with `MONGODB_URI`, `OPENAI_API_KEY`, and `DEEPSEEK_API_KEY`. Two providers, two keys.
 
 Deployed (Streamlit Cloud): set `mongodb_uri` in app secrets (see `.streamlit/secrets.toml.example`). API keys can live in `.env` locally or in Streamlit secrets on deploy.
 
@@ -127,22 +126,26 @@ python scripts/calibrate_retrieval.py --probe --db data/concepts
 ```
 
 ## Analytics scripts
-- Baseline from existing logs:
-
-```bash
-python scripts/baseline_metrics.py --mongo-uri "<YOUR_MONGO_URI>"
-```
-
 - Weekly learning report:
 
 ```bash
 python scripts/generate_weekly_report.py --mongo-uri "<YOUR_MONGO_URI>"
 ```
 
-- Prompt style behavior check:
+- Export the query log to CSV:
 
 ```bash
-python scripts/eval_prompt_styles.py
+python scripts/export_queries.py --mongo-uri "<YOUR_MONGO_URI>"
 ```
 
 Outputs are written to `analytics/`.
+
+## Live check
+
+```bash
+python scripts/smoke_turn.py "when are office hours?"
+```
+
+Runs one real turn through `app.py` headlessly (router, tools, streamed
+sections, footers) and prints what the student would have seen, plus any
+exception the in-app fallback would otherwise swallow.

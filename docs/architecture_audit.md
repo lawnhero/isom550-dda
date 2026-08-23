@@ -261,3 +261,61 @@ the JMP steps.
 `scripts/smoke_turn.py` runs a turn through `app.py` headlessly with
 Streamlit's AppTest and prints every section and any swallowed exception --
 this is how the signature drift in `ui.render_sources` was caught.
+
+---
+
+## 7. Prototype trim (2026-08-23)
+
+The app is a teaching prototype, not a product, and was trimmed to the code
+that tutors before being forked for ISOM 352. Each removal below had earned
+its place by fixing an observed problem; what it cost in reading and
+maintenance outweighed that for a prototype. The decision list that preceded
+this pass is the "ISOM 550 Trim List" note; this records what was done.
+
+**Removed.**
+- The LangGraph state machine (`utils/agent_graph.py`), the progress reporter
+  (`utils/progress.py`), and the threaded concurrent section streaming in
+  `app.py`. These were one decision: the graph only ever ran
+  agent → tools → END, its `ToolNode` thread pool was the reason progress
+  events needed thread-aware buffering, and the streaming threads were the
+  other thread-heavy piece. `utils/router.py` is the same control flow as a
+  plain loop -- one `bind_tools().invoke()`, then each tool call in order on
+  the main thread -- and `app._stream_sections` is a `for` loop. Cost: the
+  12% of turns that call two tools now wait for the sections in sequence
+  (§6 measured 5.5-5.8 s concurrent; sequential is ~9-10 s), and a tool call
+  the router mis-formats is dropped rather than retried. The `st.status`
+  line is updated at three points (routed, writing, done) instead of per event.
+- The learner profile: `infer_learner_level`, `detect_attempt_check`,
+  `build_learning_profile`, and the `learner_level` / `learning_objective` /
+  `attempt_check` keys in five prompt templates (P5). `learning_objective`
+  survives only as the analytics column the weekly report groups by, computed
+  once in `app.py`.
+- The route-keyed follow-up chip table (14 chips, `ui.follow_ups_for`).
+  Three fixed chips after every answer -- explain a concept, practice this,
+  check my work -- reusing the quick-action intents. The clarify flow (topic
+  → subtopic pills) was kept.
+- The Chroma reopen/retry wrappers in `retrieval.py`; `search_concepts` and
+  `search_documents` call the store directly and still degrade to "no
+  sources" on an exception.
+- Dead code (`render_recap`, `get_sidebar_settings`, `update_session_stats`,
+  `process_and_store_query`, `format_source_block_from_debug`,
+  `module_is_unwritten`) and stale scripts (`build_index.py`,
+  `eval_prompt_styles.py`, `baseline_metrics.py`).
+
+**Simplified.** Two providers instead of four: DeepSeek V4 Pro/Flash write
+the answers, GPT Luna routes, reads screenshots, and is the fallback for both
+DeepSeek wrappers. `langgraph` and `langchain_anthropic` left
+`requirements.txt`; `XAI_API_KEY` and `ANTHROPIC_API_KEY` are no longer read.
+
+**Unchanged on purpose.** The three course-information tiers and their
+reliability advisories, the retrieval quality bands and their refinements,
+the held practice question, attachments and vision, provenance badges and the
+abstain panel, compound-turn annotation, instructor diagnostics, the
+CSV-derived taxonomy, MongoDB event logging, the shared index builder in
+vat-research, and the tests.
+
+Verified after the pass: 102 tests pass; `smoke_turn.py` on a facts question
+(2.4 s, blue badge), a two-tool question (9.8 s, two sections with the
+compound annotation -- part 1 ends "see the next part", only part 2 asks the
+follow-up), a no-tool greeting (router text under the grey badge), and a
+practice question (green badge, grounded on one concept).

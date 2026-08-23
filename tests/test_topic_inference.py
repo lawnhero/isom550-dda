@@ -76,7 +76,6 @@ def test_taxonomy_reads_follow_the_file(tmp_path):
     )
     assert tax.curriculum_topics(path) == ["Mod one"]          # mod-two has nothing written
     assert tax.subtopics("Mod one", path) == ["Alpha"]         # planned rows are not pills
-    assert tax.module_is_unwritten("mod-two", path) is True
     assert "mod-two — NOT WRITTEN YET" in tax.format_modules_for_prompt(path)
 
 

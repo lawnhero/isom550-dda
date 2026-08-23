@@ -2,7 +2,7 @@
 """Run one real turn through app.py headlessly and print what the student saw.
 
 Uses Streamlit's AppTest, so it exercises the whole turn -- router, tools,
-concurrent section streaming, footers -- without a browser, and surfaces the
+section streaming, footers -- without a browser, and surfaces the
 exception the in-app fallback path would otherwise swallow. Needs the API
 keys and MongoDB URI from .env, and costs a few model calls per run.
 

@@ -309,46 +309,6 @@ def compose_quick_action_query(intent: str, topic: str = "", attempt_text: str =
 
 
 
-def infer_learner_level(chat_history) -> str:
-    """Estimate learner level from interaction patterns."""
-    if not chat_history:
-        return "novice"
-    student_messages = [
-        msg.content.lower()
-        for msg in chat_history
-        if "Human" in str(type(msg))
-    ]
-    if not student_messages:
-        return "novice"
-    complexity_signals = sum(
-        1
-        for message in student_messages[-4:]
-        if any(token in message for token in ["assumption", "coefficient", "p-value", "multicollinearity", "sql join"])
-    )
-    if complexity_signals >= 2:
-        return "advanced"
-    if complexity_signals == 1:
-        return "intermediate"
-    return "novice"
-
-
-def detect_attempt_check(query: str) -> bool:
-    """Detect if student is asking for attempt-level feedback."""
-    patterns = ["check my", "is this right", "my answer", "my attempt", "i tried", "did i do"]
-    lowered = query.lower()
-    return any(pattern in lowered for pattern in patterns)
-
-
-def build_learning_profile(query: str, response_mode: str, chat_history) -> Dict[str, str]:
-    """Build tutoring profile for adaptive response behavior."""
-    return {
-        "response_mode": response_mode or "Teach me step-by-step",
-        "learning_objective": infer_learning_objective(query),
-        "learner_level": infer_learner_level(chat_history),
-        "attempt_check": "yes" if detect_attempt_check(query) else "no",
-    }
-
-
 def build_chain_payload(
     query: str,
     chat_history=None,
@@ -358,14 +318,10 @@ def build_chain_payload(
 ) -> Dict[str, str]:
     """Build the common payload passed into tutoring chains."""
     history_text = format_chat_history(chat_history, max_messages=memory_window)
-    profile = build_learning_profile(query, response_mode, chat_history)
     return {
         "query": query,
         "chat_history": history_text,
-        "response_mode": profile["response_mode"],
-        "learning_objective": profile["learning_objective"],
-        "learner_level": profile["learner_level"],
-        "attempt_check": profile["attempt_check"],
+        "response_mode": response_mode or "Teach me step-by-step",
         "context": context or "No retrieved context available.",
     }
 
@@ -375,10 +331,7 @@ def class_chain(llm: BaseLanguageModel):
         DAYTON_PERSONA
         + """
 
-Learning objective: {learning_objective}
-Estimated learner level: {learner_level}
 Preferred response mode: {response_mode}
-Attempt check requested: {attempt_check}
 
 Response contract (strict):
 1) Keep focus on analytics and business decision-making.
@@ -397,12 +350,8 @@ Response contract (strict):
      - Why: <short reason>
      **Checkpoint**
      - <what student should observe or produce>
-4) If attempt_check is yes, give rubric feedback with:
-   - What is correct
-   - What to fix
-   - One next action
-5) Keep total response <=180 words, with short bullets when useful.
-6) End with one brief follow-up question that moves learning forward.
+4) Keep total response <=180 words, with short bullets when useful.
+5) End with one brief follow-up question that moves learning forward.
 
 {turn_context}
 
@@ -421,9 +370,6 @@ Response:"""
             "chat_history": itemgetter("chat_history"),
             "turn_context": _turn_context,
             "response_mode": itemgetter("response_mode"),
-            "learning_objective": itemgetter("learning_objective"),
-            "learner_level": itemgetter("learner_level"),
-            "attempt_check": itemgetter("attempt_check"),
         }
     )
     return setup | prompt | llm | output_parser
@@ -652,10 +598,7 @@ def concept_chain(llm: BaseLanguageModel, vision: bool = False):
         DAYTON_PERSONA
         + """
 
-Learning objective: {learning_objective}
-Estimated learner level: {learner_level}
 Preferred response mode: {response_mode}
-Attempt check requested: {attempt_check}
 
 """
         + SHARED_POLICY
@@ -688,14 +631,10 @@ Guidance policy (strict):
      3. <next>
      If the conversation shows the student has already done some of these,
      continue from where they are rather than restarting at 1.
-5) If attempt_check is yes, give rubric feedback:
-   - What is correct
-   - What to fix
-   - One revision to try next
-6) If the topic is out of scope, say it is not covered in class materials and
+5) If the topic is out of scope, say it is not covered in class materials and
    suggest the nearest covered topic.
-7) Keep the answer itself under 120 words, and the whole reply under 200.
-8) End with one short question that moves the learning forward. Never offer
+6) Keep the answer itself under 120 words, and the whole reply under 200.
+7) End with one short question that moves the learning forward. Never offer
    something you could simply include -- if you can give the example now, give
    it now rather than asking whether they would like one.
 
@@ -720,9 +659,6 @@ Response:"""
             "chat_history": itemgetter("chat_history"),
             "turn_context": _turn_context,
             "response_mode": itemgetter("response_mode"),
-            "learning_objective": itemgetter("learning_objective"),
-            "learner_level": itemgetter("learner_level"),
-            "attempt_check": itemgetter("attempt_check"),
         }
     )
     if vision:
@@ -737,8 +673,6 @@ def practice_chain(llm: BaseLanguageModel):
 
 Topic: {topic}
 Difficulty: {difficulty}
-Learning objective: {learning_objective}
-Estimated learner level: {learner_level}
 
 """
         + SHARED_POLICY
@@ -791,8 +725,6 @@ Response:"""
         {
             "topic": itemgetter("topic"),
             "difficulty": itemgetter("difficulty"),
-            "learning_objective": itemgetter("learning_objective"),
-            "learner_level": itemgetter("learner_level"),
             "chat_history": itemgetter("chat_history"),
             "turn_context": _turn_context,
             "previous_question": itemgetter("previous_question"),
@@ -808,8 +740,6 @@ def check_chain(llm: BaseLanguageModel, vision: bool = False):
         + """
 
 Topic: {topic}
-Learning objective: {learning_objective}
-Estimated learner level: {learner_level}
 
 """
         + SHARED_POLICY
@@ -853,8 +783,6 @@ Response:"""
             "topic": itemgetter("topic"),
             "attempt_text": itemgetter("attempt_text"),
             "question": itemgetter("question"),
-            "learning_objective": itemgetter("learning_objective"),
-            "learner_level": itemgetter("learner_level"),
             "chat_history": itemgetter("chat_history"),
             "turn_context": _turn_context,
         }
@@ -886,7 +814,6 @@ def coach_chain(llm: BaseLanguageModel):
         + """
 
 Topic: {topic}
-Estimated learner level: {learner_level}
 What the student is asking for: {request}
 
 """
@@ -929,7 +856,6 @@ Response:"""
     setup = RunnableParallel(
         {
             "topic": itemgetter("topic"),
-            "learner_level": itemgetter("learner_level"),
             "request": itemgetter("request"),
             "question_block": itemgetter("question_block"),
             "chat_history": itemgetter("chat_history"),

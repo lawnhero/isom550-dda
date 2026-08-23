@@ -628,41 +628,6 @@ def build_document_filter(
     return clauses[0] if len(clauses) == 1 else {"$and": clauses}
 
 
-def _chroma_persist(vector_db):
-    return getattr(vector_db, "_persist_directory", None)
-
-
-def _chroma_count(vector_db):
-    try:
-        return vector_db._collection.count()
-    except Exception as exc:
-        return f"unreadable ({exc})"
-
-
-def _reopen_chroma(vector_db):
-    persist = _chroma_persist(vector_db)
-    if not persist:
-        return None
-    from utils.utils import open_chroma
-
-    return open_chroma(
-        persist,
-        embedding_function=getattr(vector_db, "_embedding_function", None),
-    )
-
-
-def _with_chroma_retry(vector_db, fn, *, label: str):
-    try:
-        return fn(vector_db)
-    except Exception:
-        print(f"[{label}] query failed:\n{traceback.format_exc()}")
-        fresh = _reopen_chroma(vector_db)
-        if fresh is None:
-            raise
-        print(f"[{label}] retrying on a new client at {_chroma_persist(vector_db)}")
-        return fn(fresh)
-
-
 def fetch_by_filter(vector_db, where, top_k: int = 8) -> RetrievalResult:
     """Fetch documents by metadata filter alone, newest first.
 
@@ -746,24 +711,19 @@ def search_concepts(
             "top_k": top_k,
             "where": where,
             "in_conversation": in_conversation,
-            "persist": _chroma_persist(vector_db),
-            "n_chunks": _chroma_count(vector_db),
         },
     )
-    def _search(db, filt):
+
+    def _search(filt):
         return hybrid_retrieve(
-            db, query, top_k=top_k, where=filt, in_conversation=in_conversation,
+            vector_db, query, top_k=top_k, where=filt, in_conversation=in_conversation,
         )
 
     try:
-        found = _with_chroma_retry(
-            vector_db, lambda db: _search(db, where), label="search_concepts"
-        )
+        found = _search(where)
         if where and not found.docs:
             print(f"[search_concepts] module {resolved!r} matched nothing; widening")
-            found = _with_chroma_retry(
-                vector_db, lambda db: _search(db, None), label="search_concepts"
-            )
+            found = _search(None)
             found.widened_from_module = resolved
         return found
     except Exception:
@@ -806,33 +766,15 @@ def search_documents(
             "where": where,
             "date_filtered": date_filtered,
             "in_conversation": in_conversation,
-            "persist": _chroma_persist(vector_db),
-            "n_chunks": _chroma_count(vector_db),
         },
     )
-    if _chroma_count(vector_db) == 0:
-        fresh = _reopen_chroma(vector_db)
-        if fresh is not None and _chroma_count(fresh) != 0:
-            print(
-                "[search_documents] cached client was empty; "
-                f"reopened {_chroma_count(fresh)} chunks"
-            )
-            vector_db = fresh
     try:
         if not (query or "").strip():
-            return _with_chroma_retry(
-                vector_db,
-                lambda db: fetch_by_filter(db, where, top_k=top_k),
-                label="search_documents",
-            )
-        return _with_chroma_retry(
-            vector_db,
-            lambda db: hybrid_retrieve(
-                db, query, top_k=top_k, where=where,
-                in_conversation=in_conversation,
-                date_filtered=date_filtered,
-            ),
-            label="search_documents",
+            return fetch_by_filter(vector_db, where, top_k=top_k)
+        return hybrid_retrieve(
+            vector_db, query, top_k=top_k, where=where,
+            in_conversation=in_conversation,
+            date_filtered=date_filtered,
         )
     except Exception:
         # Still degrade to "no sources" so a missing index cannot take the turn

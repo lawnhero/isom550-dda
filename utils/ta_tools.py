@@ -8,7 +8,6 @@ from langchain_core.tools import StructuredTool
 
 import utils.chains_lcel as chains
 import utils.ui as ui
-from utils.progress import ProgressReporter
 from utils import practice
 from utils.retrieval import (
     RetrievalResult,
@@ -69,26 +68,17 @@ class ToolStep:
 class TurnArtifacts:
     """Side-channel carrying what each tool prepared, one entry per tool call.
 
-    This used to be a flat set of slots -- one `stream_spec`, one `sources`,
-    one `abstained` -- shared by every tool in the turn. The router is told a
-    question can need two tools, and LangGraph runs the calls in a single
-    parallel batch, so the slots were a race: whichever tool finished LAST won,
-    and the other tool's fully prepared answer was dropped on the floor.
-
-    "How do I run a regression in JMP, and what does R-squared mean?" reliably
-    called answer_software then answer_concept, and the student got only the
-    concept half -- under a badge naming answer_software, because the badge
-    read the FIRST tool while the answer came from the LAST.
-
-    Keyed by a per-call `step_id` the tool generates and echoes back in its
-    ToolMessage, so concurrent tools cannot collide, and the caller can put the
-    steps back into the model's intended order (see run_ta_turn).
+    The router is told a question can need two tools ("how do I run a
+    regression in JMP, and what does R-squared mean?"), so each call gets its
+    own ToolStep rather than sharing one set of slots. Keyed by a per-call
+    `step_id` the tool generates and echoes back in its receipt, so the caller
+    can match each receipt to the payload it belongs to (see router.run_ta_turn).
     """
 
     steps: Dict[str, ToolStep] = field(default_factory=dict)
 
     def new_step(self, tool_name: str) -> ToolStep:
-        """Claim a fresh slot for one tool call. Safe to call from any thread."""
+        """Claim a fresh slot for one tool call."""
         step = ToolStep(step_id=uuid.uuid4().hex, tool_name=tool_name)
         self.steps[step.step_id] = step
         return step
@@ -113,26 +103,18 @@ class ToolExecutionResult:
     tool_name: str = ""
     stream_ready: bool = False
     retrieval_quality: str = ""
-    # Echoed back through the ToolMessage so run_ta_turn can match this result
+    # Echoed back through the receipt so run_ta_turn can match this result
     # to the ToolStep that holds its (unserialisable) chain payload.
     step_id: str = ""
 
 
 def _serialize_tool_result(result: ToolExecutionResult) -> str:
-    """The ToolMessage the router sees. Deliberately a receipt, not the answer.
+    """What a tool returns. Deliberately a receipt, not the answer.
 
-    It used to serialise the whole ToolExecutionResult, including `sources` and
-    a `retrieval_debug` array carrying a 120-character preview of every
-    retrieved chunk. That put ~250 tokens of real course content into the
-    router's context on every retrieval call -- content the router has no use
-    for, since the tutoring answer is streamed from the side channel. It also
-    gave the post-tool router pass enough material to write its own redundant
-    answer to the student's question, which was then discarded.
-
-    What remains is what something actually reads: `step_id` correlates this
-    receipt to the ToolStep holding the chain payload, and the rest tells the
-    router (and the retry check) whether the call succeeded. Everything else is
-    read off the ToolStep instead.
+    The router never reads retrieved text or the chain payload -- the tutoring
+    answer is streamed from the ToolStep by app.py. `step_id` correlates this
+    receipt to the ToolStep holding that payload; the rest says whether the
+    call succeeded. Everything else is read off the ToolStep instead.
     """
     return json.dumps(
         {
@@ -298,42 +280,6 @@ NO_HELD_QUESTION = (
 )
 
 
-def _short_query(query: str, limit: int = 70) -> str:
-    """The search text, trimmed to fit a status line.
-
-    The router rewrites the student's question before searching and can hand a
-    tool two full sentences; unabridged it turns the status log into a wall.
-    """
-    text = " ".join((query or "").split())
-    return text if len(text) <= limit else text[: limit - 1] + "…"
-
-
-def _describe_retrieval(
-    found: RetrievalResult, what: str, *, query: str = "", window: str = ""
-) -> str:
-    """The single status line a finished search gets.
-
-    One line, not three. An announcement before the search plus a result after
-    it read as two lines only in principle: tools run in ToolNode's workers, so
-    both are flushed together and the student sees the same search described
-    twice. The list of sources is a third repeat -- that one belongs to the
-    Sources expander, which is built for it and can show the text.
-    """
-    asked = f" for “{_short_query(query)}”" if (query or "").strip() else ""
-    if not found.docs:
-        return f"Searched {what}{window}{asked} — nothing matched"
-    quality = {
-        "strong": "close match",
-        "weak": "loose match",
-        "none": "no usable match",
-    }.get(found.quality, found.quality)
-    by = " by date/type filter" if found.mode == "filter" else ""
-    return (
-        f"Searched {what}{window}{asked} — "
-        f"{len(found.docs)} passage(s){by}, {quality}"
-    )
-
-
 def _stream_spec(
     chain_key: str,
     payload: Dict[str, Any],
@@ -364,7 +310,6 @@ def _prepare_rag_tool(
     response_mode: str,
     tool_name: str,
     artifacts: TurnArtifacts,
-    progress: ProgressReporter,
     module: str = "",
     memory_window: int = chains.DEFAULT_MEMORY_WINDOW,
     images: Optional[List[Dict[str, str]]] = None,
@@ -379,10 +324,8 @@ def _prepare_rag_tool(
     )
     debug_rows = retrieval_debug_rows(found.docs)
     step.retrieval_debug = debug_rows
-    progress.emit(detail=_describe_retrieval(found, "the class materials", query=query))
 
     if found.quality == "none":
-        progress.emit(detail="Not enough grounding to answer — abstaining")
         step.abstained = True
         step.static_answer = ABSTAIN_MESSAGE
         step.retrieval_quality = "none"
@@ -501,7 +444,6 @@ def build_ta_tools(
     course_context: str = "",
     software_context: str = "",
     course_span=None,
-    progress: Optional[ProgressReporter] = None,
     memory_window: int = chains.DEFAULT_MEMORY_WINDOW,
     images: Optional[List[Dict[str, str]]] = None,
     practice_session: Optional[Dict[str, Any]] = None,
@@ -520,13 +462,7 @@ def build_ta_tools(
     under an output-token cap, and an attached file can be thousands of
     characters, so copying truncated the call into invalid JSON.
 
-    `progress` receives a line per meaningful step inside each tool. The tools
-    run in ToolNode's thread pool, so those lines are buffered and painted at
-    the next graph node boundary -- the status LABEL for this phase is set by
-    run_ta_turn the moment the router names its tools, which is early enough to
-    cover the retrieval that follows.
     """
-    progress = progress or ProgressReporter()
     # Screenshots reach the chains through the closure, not through tool
     # arguments. The router never sees the pixels -- it gets a one-line marker
     # in the query (see attachments.describe_images) and picks a route from
@@ -548,7 +484,6 @@ def build_ta_tools(
         step = artifacts.new_step("answer_course_facts")
 
         if not (course_context or "").strip():
-            progress.emit(detail="No course schedule snapshot is loaded — abstaining")
             # No snapshot loaded. Say so rather than let another route invent a date.
             answer = (
                 "I don't have the course schedule loaded right now, so I can't confirm "
@@ -566,12 +501,6 @@ def build_ta_tools(
                 )
             )
 
-        progress.emit(
-            detail=(
-                "Reading the synced schedule and syllabus facts "
-                f"({len(course_context):,} chars, no search needed)"
-            )
-        )
         # No retrieval: the Tier A block already is the context.
         payload = {
             "course_context": course_context,
@@ -601,9 +530,6 @@ def build_ta_tools(
                 task and any output they are looking at.
         """
         step = artifacts.new_step("answer_software")
-        progress.emit(
-            detail="Working out the JMP / Excel steps from this course's conventions"
-        )
 
         # Deliberately no vector search. Retrieval here was actively harmful:
         # a JMP question used to land in answer_concept and get four unrelated
@@ -707,7 +633,6 @@ def build_ta_tools(
             )
             step.static_answer = answer
             step.abstained = True
-            progress.emit(detail="No topic and no date to search on — asking for one")
             step.trace = {
                 "tool": "answer_course_documents", "chain": None,
                 "retrieval": False, "why": "no query and no filter",
@@ -750,11 +675,6 @@ def build_ta_tools(
             )
         debug_rows = retrieval_debug_rows(found.docs)
         step.retrieval_debug = debug_rows
-        progress.emit(
-            detail=_describe_retrieval(found, what, query=query, window=window)
-        )
-        if found.quality != "none":
-            progress.emit(label=ui.collected_label(["answer_course_documents"]))
         step.trace = {
             "tool": "answer_course_documents", "chain": "doc_chain", "retrieval": True,
             "args": {"doc_type": doc_type or "(any)", "days_back": days_back,
@@ -773,7 +693,6 @@ def build_ta_tools(
             step.static_answer = answer
             step.retrieval_quality = "none"
             step.trace["abstained"] = True
-            progress.emit(detail="Nothing close enough to answer from — abstaining")
             return _serialize_tool_result(
                 ToolExecutionResult(
                     answer=answer,
@@ -831,7 +750,6 @@ def build_ta_tools(
             response_mode=response_mode,
             tool_name="answer_concept",
             artifacts=artifacts,
-            progress=progress,
             module=module,
             memory_window=memory_window,
             images=images,
@@ -885,13 +803,10 @@ def build_ta_tools(
                 grounded_on = _extract_source_labels(found.docs)[0]
                 step.sources = [grounded_on]
                 step.retrieval_debug = retrieval_debug_rows(found.docs)
-                progress.emit(detail=f"Grounding the question in “{grounded_on}”")
 
         payload = {
             "topic": topic,
             "difficulty": difficulty,
-            "learning_objective": chains.infer_learning_objective(topic),
-            "learner_level": chains.infer_learner_level(chat_history),
             "chat_history": _history_text(),
             # So a "harder" variant escalates the question on screen instead of
             # silently restating it.
@@ -906,9 +821,6 @@ def build_ta_tools(
         probable_misroute = (
             practice.is_active(practice_session)
             and int(practice_session.get("hints_given") or 0) > 0
-        )
-        progress.emit(
-            detail=f"Writing a {difficulty}-difficulty practice question on {topic}"
         )
         step.practice_topic = topic
         step.covers = f"a new practice question on {topic}"
@@ -950,7 +862,6 @@ def build_ta_tools(
                 "one and I'll walk you through it."
             )
             step.static_answer = answer
-            progress.emit(detail="No practice question in session — nothing to coach")
             step.trace = {
                 "tool": "coach_practice", "chain": None, "retrieval": False,
                 "practice_active": False,
@@ -970,15 +881,11 @@ def build_ta_tools(
         topic = practice.topic_of(practice_session) or "General analytics"
         payload = {
             "topic": topic,
-            "learner_level": chains.infer_learner_level(chat_history),
             "request": resolved,
             "question_block": practice.prompt_block(practice_session),
             "chat_history": _history_text(),
             "query": query or "",
         }
-        progress.emit(
-            detail=f"Coaching on the open question ({resolved.replace('_', ' ')})"
-        )
         step.practice_topic = topic
         step.covers = f"help ({resolved.replace('_', ' ')}) with the practice question on screen"
         step.stream_spec = StreamSpec(chain_key="coach_chain", payload=payload)
@@ -1028,7 +935,6 @@ def build_ta_tools(
         if not attempt_text:
             answer = "Please paste your attempt so I can check it."
             step.static_answer = answer
-            progress.emit(detail="No attempt text to check — asking for it")
             result = ToolExecutionResult(
                 answer=answer,
                 tool_name="check_attempt",
@@ -1041,17 +947,12 @@ def build_ta_tools(
         payload = {
             "topic": topic,
             "attempt_text": attempt_text,
-            "learning_objective": chains.infer_learning_objective(topic),
-            "learner_level": chains.infer_learner_level(chat_history),
             "chat_history": _history_text(),
             # The question itself, not a recollection of it. Held in session
             # state because the recent-chat window is 8 messages -- four turns --
             # and question/hint/clarify/attempt is exactly four.
             "question": practice.question_of(practice_session) or NO_HELD_QUESTION,
         }
-        progress.emit(
-            detail=f"Reviewing your attempt on {topic} ({len(attempt_text):,} chars)"
-        )
         step.practice_topic = topic
         step.covers = f"feedback on the student's attempt ({topic})"
         step.stream_spec = _stream_spec("check_chain", payload, images)
@@ -1158,10 +1059,8 @@ def build_ta_tools(
 def parse_tool_message_content(content: str) -> Optional[ToolExecutionResult]:
     """Parse a receipt, or None when the tool call failed.
 
-    Returning None IS the failure signal: LangGraph turns a tool exception into
-    a plain-text ToolMessage ("Error invoking tool ... Please fix the error and
-    try again"), which is not our JSON. The graph's retry edge keys off exactly
-    this, so a tool that raises gets the router another pass to correct itself.
+    Returning None IS the failure signal: anything that is not our JSON receipt
+    means the tool did not complete, and router.run_ta_turn drops that call.
 
     Sources and retrieval rows are no longer carried here -- they live on the
     ToolStep. See _serialize_tool_result.
@@ -1181,13 +1080,3 @@ def parse_tool_message_content(content: str) -> Optional[ToolExecutionResult]:
     )
 
 
-def format_source_block_from_debug(rows: List[Dict[str, str]]) -> str:
-    if not rows:
-        return "_No sources available._"
-    lines = []
-    for row in rows:
-        rank = row.get("rank") or "?"
-        source = row.get("source") or "Unknown source"
-        preview = row.get("preview") or ""
-        lines.append(f"- **[{rank}] {source}**: {preview}")
-    return "\n".join(lines)

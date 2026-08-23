@@ -4,12 +4,10 @@ Presentation layer for the Virtual TA chat.
 Everything here answers one of two student-facing questions:
 
   "Where did this answer come from?"  -> ROUTE_META and render_provenance()
-  "What can I do next?"               -> FOLLOW_UPS and follow_ups_for()
+  "What can I do next?"               -> QUICK_ACTIONS and FOLLOW_UPS
 
-Both used to be invisible. The route was recorded only in instructor
-diagnostics, and the follow-up row was a fixed practice-oriented set shown
-after every answer, including logistics ones. A student who asked when the
-midterm was got offered "Try a harder one".
+The route used to be recorded only in instructor diagnostics; now every
+answer carries a badge naming it.
 
 app.py owns turn orchestration and session state; this module owns how a turn
 is drawn. Nothing here calls the agent or mutates chat history.
@@ -70,9 +68,9 @@ def write_stream_md(stream, container=None):
 # Route provenance
 # --------------------------------------------------------------------------
 # One entry per agent tool, plus the two non-tool outcomes. `working` is shown
-# live while the turn runs, `done` on the status line once it has finished, and
-# `badge` is what stays under the finished answer. All three say the same thing
-# in three tenses, from one table, so they cannot drift apart.
+# live while the tools run, `done` on the status line once the turn has
+# finished, and `badge` is what stays under the finished answer. All three say
+# the same thing in three tenses, from one table, so they cannot drift apart.
 #
 # The distinction students actually need is grounded vs. not: facts and
 # documents come from the instructor's own material, software help comes from
@@ -89,7 +87,6 @@ ROUTE_META = {
     },
     "answer_course_documents": {
         "working": "Reading class recaps and assignment instructions",
-        "collected": "Collected relevant information from class recaps and assignments",
         "done": "Read the class recaps and assignment briefs",
         "badge": "Class recaps and assignment briefs",
         "icon": ":material/description:",
@@ -192,11 +189,6 @@ def _join_route_phrases(route_labels, tense: str) -> str:
 def working_label(route_labels) -> str:
     """The live "what I'm doing right now" phrase for one or more routes."""
     return _join_route_phrases(route_labels, "working")
-
-
-def collected_label(route_labels) -> str:
-    """Status after retrieval succeeds, before the answer is written."""
-    return _join_route_phrases(route_labels, "collected")
 
 
 def completion_label(
@@ -358,26 +350,12 @@ def render_progress(record: dict) -> None:
     """
     if not record:
         return
-    status = st.status(
+    st.status(
         record.get("label") or "Answer complete",
         state=record.get("state") or "complete",
         type="compact",
         expanded=False,
     )
-    for line in record.get("lines") or []:
-        status.caption(line)
-
-
-def render_recap(text: str) -> None:
-    """Session recap card.
-
-    Previously written immediately before `st.rerun()`, which destroyed it --
-    the LLM call ran every fourth turn and the student never saw the output.
-    Now stored per message and drawn from history.
-    """
-    if not text:
-        return
-    st.info(text, icon=":material/checklist:")
 
 
 # --------------------------------------------------------------------------
@@ -434,158 +412,36 @@ STARTER_PROMPTS = [
     "What does an R-squared of 0.62 mean?",
 ]
 
-_EXPLAIN = {
-    "label": "Explain a concept",
-    "icon": ":material/menu_book:",
-    "kind": "intent",
-    "value": "explain",
-    "needs": "topic",
-    "clarify": "Which concept should I explain? Pick a topic below or type it in the chat.",
-    "covers": "answer_concept",
-}
-_PRACTICE_SAME = {
-    "label": "Practice this",
-    "icon": ":material/quiz:",
-    "kind": "intent",
-    "value": "practice_same",
-    "covers": "generate_practice",
-}
-_PRACTICE_HARDER = {
-    "label": "Try a harder one",
-    "icon": ":material/trending_up:",
-    "kind": "intent",
-    "value": "practice_harder",
-}
-_CHECK = {
-    "label": "Check my work",
-    "icon": ":material/rate_review:",
-    "kind": "intent",
-    "value": "check",
-    "needs": "attempt",
-    "clarify": "Paste your attempt in the chat, or attach a file, and I will check it.",
-}
-_SIMPLER = {
-    "label": "Explain it simpler",
-    "icon": ":material/compress:",
-    "kind": "query",
-    "value": (
-        "Explain your last answer again, more simply, using a concrete business "
-        "example and no jargon."
-    ),
-}
-# `covers` marks the route a chip would re-ask. Now that one turn can answer
-# two routes, offering "Show me in JMP" directly under a JMP walkthrough the
-# student just read is noise -- see follow_ups_for.
-_STEPS = {
-    "label": "Break it into steps",
-    "icon": ":material/format_list_numbered:",
-    "kind": "query",
-    "value": "Turn your last answer into an ordered list of what I should do first, second, third.",
-}
-_WHATS_DUE = {
-    "label": "What's due next",
-    "icon": ":material/event_upcoming:",
-    "kind": "query",
-    "value": "What assignments are coming up, and when are they due?",
-    "covers": "answer_course_facts",
-}
-_RECENT_CLASSES = {
-    "label": "Recent classes",
-    "icon": ":material/history:",
-    "kind": "query",
-    "value": "What did we cover in class over the last two weeks?",
-    "covers": "answer_course_documents",
-}
-_IN_SOFTWARE = {
-    "label": "Show me in JMP / Excel",
-    "icon": ":material/build:",
-    "kind": "query",
-    "value": "How do I do that in JMP or Excel? Give me the exact menu steps.",
-    "covers": "answer_software",
-}
-_READ_OUTPUT = {
-    "label": "What does the output mean",
-    "icon": ":material/insights:",
-    "kind": "query",
-    "value": "Once I have that output, how do I read it? What should I be looking at?",
-}
-_HINT = {
-    "label": "Give me a hint",
-    "icon": ":material/lightbulb:",
-    "kind": "query",
-    "value": "Give me one more hint for that practice question, without the answer.",
-}
-_WHY_WRONG = {
-    "label": "Why was that wrong",
-    "icon": ":material/help:",
-    "kind": "query",
-    "value": "Explain why the part I got wrong is wrong, and what the correct reasoning looks like.",
-}
-_REPHRASE = {
-    "label": "Ask a different way",
-    "icon": ":material/edit:",
-    "kind": "query",
-    "value": (
-        "I am not sure how to phrase that. Ask me what detail you need in order to "
-        "answer, then answer once I give it."
-    ),
-}
-_WHAT_COVERED = {
-    "label": "What do you cover",
-    "icon": ":material/list:",
-    "kind": "query",
-    "value": "What topics and course information can you actually help me with?",
-}
-
-# Three chips maximum. Four stretched buttons already wrap awkwardly on a
-# phone, and the chat input is always available for anything not listed.
-FOLLOW_UPS = {
-    "answer_course_facts": [_WHATS_DUE, _RECENT_CLASSES, _EXPLAIN],
-    "answer_course_documents": [_STEPS, _EXPLAIN, _WHATS_DUE],
-    "answer_concept": [_PRACTICE_SAME, _SIMPLER, _IN_SOFTWARE],
-    "answer_software": [_READ_OUTPUT, _EXPLAIN, _PRACTICE_SAME],
-    # _HINT finally has a route behind it: before coach_practice existed this
-    # chip sat under every practice question and was answered by whatever the
-    # router happened to pick -- often generate_practice, which replaced the
-    # question the student was asking for help with.
-    "generate_practice": [_CHECK, _HINT, _PRACTICE_HARDER],
-    "coach_practice": [_CHECK, _HINT, _EXPLAIN],
-    "check_attempt": [_WHY_WRONG, _PRACTICE_HARDER, _EXPLAIN],
-}
-
-_DEFAULT_FOLLOW_UPS = [_EXPLAIN, _PRACTICE_SAME, _CHECK]
-_UNRESOLVED_FOLLOW_UPS = [_REPHRASE, _WHAT_COVERED, _WHATS_DUE]
-
-
-def follow_ups_for(
-    route_label: str, *, abstained: bool = False, covered=()
-) -> list:
-    """Next-step chips appropriate to the answer the student just read.
-
-    `covered` is the set of routes this turn already answered. A turn can now
-    produce several sections, so without it a student who just read a JMP
-    walkthrough followed by a concept explanation is offered "Show me in JMP /
-    Excel" underneath the walkthrough they are still looking at.
-
-    Backfills from the default set so the row does not shrink when chips are
-    dropped -- three chips is already the minimum useful width.
-    """
-    if abstained:
-        return _UNRESOLVED_FOLLOW_UPS
-
-    chosen = FOLLOW_UPS.get(route_label or "", _DEFAULT_FOLLOW_UPS)
-    covered = set(covered or ())
-    if not covered:
-        return chosen
-
-    kept = [chip for chip in chosen if chip.get("covers") not in covered]
-    for chip in _DEFAULT_FOLLOW_UPS + [_WHATS_DUE, _STEPS, _SIMPLER]:
-        if len(kept) >= len(chosen):
-            break
-        if chip.get("covers") in covered or chip in kept:
-            continue
-        kept.append(chip)
-    return kept[:len(chosen)]
+# Three fixed chips after every answer. They reuse the quick-action intents:
+# "Explain a concept" and "Check my work" open the same clarifying turn as the
+# empty-state buttons, and "Practice this" drills the topic of the last answer
+# (or asks for one when there is none yet). Three, not more: four stretched
+# buttons already wrap awkwardly on a phone, and the chat input is always
+# there for anything not listed.
+FOLLOW_UPS = [
+    {
+        "label": "Explain a concept",
+        "icon": ":material/menu_book:",
+        "kind": "intent",
+        "value": "explain",
+        "needs": "topic",
+        "clarify": "Which concept should I explain? Pick a topic below or type it in the chat.",
+    },
+    {
+        "label": "Practice this",
+        "icon": ":material/quiz:",
+        "kind": "intent",
+        "value": "practice_same",
+    },
+    {
+        "label": "Check my work",
+        "icon": ":material/rate_review:",
+        "kind": "intent",
+        "value": "check",
+        "needs": "attempt",
+        "clarify": "Paste your attempt in the chat, or attach a file, and I will check it.",
+    },
+]
 
 
 def render_action_row(actions: list, *, key_prefix: str):

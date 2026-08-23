@@ -167,7 +167,6 @@ def test_filter_only_documents_question_is_synthesised(tools, all_chains):
 def test_vision_build_prepends_the_vision_policy(all_chains):
     payload = {
         "topic": "Regression", "attempt_text": "see screenshot", "question": "",
-        "learning_objective": "Regression", "learner_level": "novice",
         "chat_history": "No previous conversation.",
         "images": [{"name": "a.png", "data_url": "data:image/png;base64,AAAA"}],
     }
