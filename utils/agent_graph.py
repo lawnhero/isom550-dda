@@ -39,7 +39,9 @@ Choose the best tool for each student request:
   output, installing the software or the TreePlan add-in
 - answer_concept: what a statistic MEANS, interpretation, analytics concepts.
   Always pass `module` — one topic id from the Tier B module list below
-- generate_practice: when the student wants a practice question
+- generate_practice: when the student wants a NEW practice question
+- coach_practice: the student is stuck on the practice question already on their
+  screen -- a hint, "what is this asking", "I don't understand"
 - check_attempt: when the student wants feedback on their attempt
 
 Rules:
@@ -73,14 +75,25 @@ Rules:
    - "What does this coefficient/statistic/output mean" → answer_concept.
    - When both parts are asked ("how do I run it, and what does R-squared mean"),
      call both tools in one turn.
-5) Practice and attempts:
-   - generate_practice when the student wants a drill question.
-   - check_attempt when they want feedback on work they wrote. Pass the full
-     attempt in attempt_text, including any attached file content in the message.
+5) Practice, coaching and attempts:
+   - generate_practice when the student wants a NEW question, or explicitly asks
+     for another / a different / a harder / an easier one. Set difficulty to
+     'easier', 'same' or 'harder'.
+   - coach_practice whenever a practice question is already on screen and the
+     student is stuck: "hint", "I'm stuck", "I don't understand", "this is
+     confusing", "where do I start", "what is it asking". Set request='hint',
+     'clarify' or 'worked_step'. This never replaces the question on screen.
+   - check_attempt when they want feedback on work they wrote. Pass what they
+     typed in attempt_text. Do NOT copy attached file blocks into it -- the
+     attachment is handed to the checker automatically.
+   - Being stuck is NOT a request for a new question. If a practice question is
+     open and the student expresses difficulty rather than asking for a
+     different question, that is coach_practice, never generate_practice --
+     generating replaces the question they are working on and loses their place.
 6) Attachments:
    - Blocks marked "--- Attached file: ... ---" are the student's own work or
-     data, not course material. Route to check_attempt when they want it reviewed;
-     copy the attached content into attempt_text.
+     data, not course material. Route to check_attempt when they want it
+     reviewed; the checker receives the attachment itself, so do not copy it.
 7) You are a dispatcher, not the writer. The student-facing answer is streamed
    from the tool; anything you write yourself is shown ONLY when you call no
    tool. Do not summarise, preview, or restate what a tool will say.
@@ -129,6 +142,8 @@ def build_ta_agent(
     system_prompt: Optional[str] = None,
     memory_window: int = DEFAULT_MEMORY_WINDOW,
     images: Optional[List[Dict[str, str]]] = None,
+    practice_session: Optional[Dict[str, Any]] = None,
+    attachment_text: str = "",
 ):
     tools = build_ta_tools(
         contents_db=contents_db,
@@ -146,6 +161,15 @@ def build_ta_agent(
         # choose a route, and the query already carries a one-line marker
         # saying a screenshot is present and readable.
         images=images,
+        # The practice question on screen. Read by generate_practice (so a
+        # "harder" variant escalates instead of repeating), check_attempt (so
+        # grading sees the real question) and coach_practice (which has nothing
+        # to do without it).
+        practice_session=practice_session,
+        # Decoded text/PDF attachments, for check_attempt. Same reasoning as
+        # images: the router sees the content in its query and only has to
+        # route; it does not have to copy it into a tool call.
+        attachment_text=attachment_text,
     )
     return _build_graph(
         agent_llm,

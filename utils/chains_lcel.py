@@ -135,89 +135,32 @@ def format_chat_history(chat_history, max_messages: int = DEFAULT_MEMORY_WINDOW)
     return "\n".join(lines)
 
 
-CURRICULUM_TOPICS = [
-    "Descriptive statistics",
-    "Probability",
-    "Hypothesis testing",
-    "Regression",
-    "Decision analysis",
-    "SAS JMP / Excel workflows",
-]
+# --------------------------------------------------------------------------
+# Curriculum taxonomy
+#
+# Everything below is DERIVED from course_data/concepts.csv through
+# utils.concept_taxonomy. This module used to carry its own six-topic table,
+# a subtopic table, and a keyword map, all written by hand -- and all three
+# drifted from what the concept index could actually answer. The pills
+# offered "Probability -> Bayes theorem" and "Hypothesis testing -> ANOVA";
+# the index had neither; the first click abstained.
+#
+# Topic labels are module labels ("Simple regression"); subtopics are the
+# CSV's `topic` column; a composed focus is "Module: Topic". Edit the CSV to
+# change any of it; nothing here needs touching.
+# --------------------------------------------------------------------------
+def curriculum_topics() -> list:
+    """Top-level pill labels, in teaching order."""
+    from utils.concept_taxonomy import curriculum_topics as _topics
 
-# Subtopics shown after a student picks a top-level curriculum topic.
-CURRICULUM_SUBTOPICS = {
-    "Descriptive statistics": [
-        "Mean / median / mode",
-        "Variance and standard deviation",
-        "Distributions and shape",
-        "Percentiles and boxplots",
-        "Exploratory data analysis",
-    ],
-    "Probability": [
-        "Basic probability rules",
-        "Conditional probability",
-        "Bayes theorem",
-        "Random variables",
-        "Expected value",
-    ],
-    "Hypothesis testing": [
-        "Null vs alternative hypotheses",
-        "p-values and significance",
-        "t-tests",
-        "ANOVA",
-        "Type I / Type II errors",
-    ],
-    "Regression": [
-        "Simple linear regression",
-        "Multiple regression",
-        "Coefficient interpretation",
-        "R-squared and fit",
-        "Assumptions and diagnostics",
-        "Multicollinearity",
-    ],
-    "Decision analysis": [
-        "Decision trees",
-        "Expected value of decisions",
-        "Sensitivity analysis",
-        "Payoff tables",
-        "Value of information",
-    ],
-    "SAS JMP / Excel workflows": [
-        "JMP basics",
-        "Excel Data Analysis ToolPak",
-        "Building a model in Excel",
-        "Reading JMP / Excel output",
-        "Common workflow tips",
-    ],
-}
-
-# Backward-compatible alias used by topic pills in the UI.
-COURSE_TOPIC_CHOICES = CURRICULUM_TOPICS
-
-_TOPIC_KEYWORDS = {
-    "Descriptive statistics": [
-        "descriptive",
-        "distribution",
-        "mean",
-        "median",
-        "variance",
-        "standard deviation",
-    ],
-    "Probability": ["probability", "bayes", "conditional", "random variable"],
-    "Hypothesis testing": ["hypothesis", "p-value", "significance", "t-test", "anova"],
-    "Regression": ["regression", "coefficient", "r-squared", "multicollinearity"],
-    "Decision analysis": [
-        "excel model",
-        "sensitivity analysis",
-        "decision tree development / solution",
-    ],
-    "SAS JMP / Excel workflows": ["jmp", "excel", "data analysis toolpak"],
-}
+    return _topics()
 
 
 def get_subtopics(topic: str) -> list:
     """Return subtopic labels for a curriculum topic, or an empty list."""
-    return list(CURRICULUM_SUBTOPICS.get((topic or "").strip(), []))
+    from utils.concept_taxonomy import subtopics
+
+    return subtopics(topic)
 
 
 def format_topic_focus(topic: str = "", subtopic: str = "") -> str:
@@ -228,6 +171,13 @@ def format_topic_focus(topic: str = "", subtopic: str = "") -> str:
         return f"{topic}: {subtopic}"
     return subtopic or topic
 
+
+# Learning objectives that are not concept modules. Software and logistics
+# questions are a large share of traffic and deserve their own analytics
+# bucket; they are not pills because there is nothing to retrieve for them.
+_SOFTWARE_KEYWORDS = ("jmp", "excel", "treeplan", "toolpak", "pivot")
+SOFTWARE_OBJECTIVE = "JMP / Excel workflows"
+
 _LOGISTICS_KEYWORDS = {
     "grading": "Course policy and grading logistics",
     "deadline": "Course schedule and due date logistics",
@@ -237,15 +187,18 @@ _LOGISTICS_KEYWORDS = {
 
 
 def infer_curriculum_topic(query: str) -> str:
-    """Return the best-matching curriculum topic label, or empty string."""
-    lowered = (query or "").lower()
-    for topic in CURRICULUM_TOPICS:
-        if topic.lower() in lowered:
-            return topic
-    for topic, keywords in _TOPIC_KEYWORDS.items():
-        if any(keyword in lowered for keyword in keywords):
-            return topic
-    return ""
+    """Return the best-matching module label, or empty string.
+
+    Keywords come from the CSV (module ids, topic labels, concept titles),
+    weighted by how many modules share them -- see
+    concept_taxonomy.infer_module. "What does an R-squared of 0.62 mean?"
+    resolves to "Simple regression" because "r-squared" appears in exactly one
+    module's titles, while "mean" is spread across several and counts for
+    little.
+    """
+    from utils.concept_taxonomy import infer_module_label
+
+    return infer_module_label(query)
 
 
 def infer_learning_objective(query: str) -> str:
@@ -253,7 +206,9 @@ def infer_learning_objective(query: str) -> str:
     topic = infer_curriculum_topic(query)
     if topic:
         return topic
-    lowered = query.lower()
+    lowered = (query or "").lower()
+    if any(keyword in lowered for keyword in _SOFTWARE_KEYWORDS):
+        return SOFTWARE_OBJECTIVE
     for keyword, objective in _LOGISTICS_KEYWORDS.items():
         if keyword in lowered:
             return objective
@@ -271,18 +226,12 @@ def infer_topic_from_history(chat_history, max_messages: int = 6) -> str:
         topic = infer_curriculum_topic(message.content)
         if topic:
             return topic
-        objective = infer_learning_objective(message.content)
-        if objective in CURRICULUM_TOPICS:
-            return objective
     for message in reversed(recent):
         if "AI" not in str(type(message)) and "Assistant" not in str(type(message)):
             continue
         topic = infer_curriculum_topic(message.content)
         if topic:
             return topic
-        objective = infer_learning_objective(message.content)
-        if objective in CURRICULUM_TOPICS:
-            return objective
     return ""
 
 
@@ -496,15 +445,14 @@ Rules:
    instruction on its "->" line BEFORE answering, even when that means
    withholding dates that appear later in the context. That instruction
    overrides rule 2.
-4) Link to Canvas whenever the context provides a URL, so the student can confirm.
+4) Link to Canvas whenever the context provides a URL, so the student can confirm. Embed the link in the answer text without the complete URL.
 5) Under 120 words, plain language.
 
 Always use this shape, regardless of the student's tutoring style preference:
 
-**Answer**
 <the fact, stated plainly>
-**Check yourself**
-- <where to verify, with the Canvas link when the context has one>
+
+You can verify at <where to verify, with the Canvas link when the context has one>
 
 COURSE CONTEXT:
 {course_context}
@@ -617,7 +565,7 @@ Rules:
 2) If the documents do not cover the question, say so plainly and suggest where
    to look. Do not fill the gap from general knowledge.
 3) Name the document you are drawing on ("Class 9 (7/27) Sensitivity Analysis")
-   and include its link when one is provided. if a document has multiple parts, 
+   and include its link when one is provided. If a document has multiple parts,
    group them together as one document and name the group.
 4) State the document's content plainly first. Then adapt any FURTHER
    explanation to the response mode:
@@ -779,6 +727,26 @@ Rules:
 3) Do NOT provide the full solution.
 4) End with one short hint the student can use if stuck.
 5) Keep total response <=180 words.
+6) Pitch it to the difficulty:
+   - easier: fewer moving parts, numbers that divide cleanly, and name the
+     measure they need so the work is the interpretation rather than the setup.
+   - same: same demand as the last one, different scenario.
+   - harder: add one more step, a distractor figure, or ask them to justify the
+     choice of method as well as apply it.
+7) PREVIOUSLY ASKED below is the question already on the student's screen, if
+   any. Do not reuse its scenario or its numbers -- a "harder" variant that
+   restates the same question reads as a bug. Escalate it, do not repeat it.
+8) CLASS MATERIAL below is the instructor's own note on this topic, when the
+   course has one. Drill exactly the skill it teaches, in the instructor's
+   framing. If it lists a "Common student mistake", design the question so a
+   student who holds that misconception would get it wrong -- that is the
+   point of practising. Never quote the note or its labels to the student.
+
+CLASS MATERIAL:
+{concept_context}
+
+PREVIOUSLY ASKED:
+{previous_question}
 
 Use this structure:
 **Practice question**
@@ -800,6 +768,8 @@ Response:"""
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
             "chat_history": itemgetter("chat_history"),
+            "previous_question": itemgetter("previous_question"),
+            "concept_context": itemgetter("concept_context"),
         }
     )
     return setup | prompt | llm | output_parser
@@ -819,7 +789,16 @@ Estimated learner level: {learner_level}
         + """
 
 Check the student's attempt and give constructive feedback.
+
+THE QUESTION THEY WERE ANSWERING:
+{question}
+
 Rules:
+0) When THE QUESTION above is a practice question, grade against it, not
+   against your own idea of what was probably asked. When it says no practice
+   question is open, the attempt is the student's own work: work out the task
+   from the attempt and the recent chat, and if the task is genuinely unclear,
+   ask one question before grading rather than guessing.
 1) Use this exact structure:
    **What is correct**
    - <bullet(s)>
@@ -844,6 +823,7 @@ Response:"""
         {
             "topic": itemgetter("topic"),
             "attempt_text": itemgetter("attempt_text"),
+            "question": itemgetter("question"),
             "learning_objective": itemgetter("learning_objective"),
             "learner_level": itemgetter("learner_level"),
             "chat_history": itemgetter("chat_history"),
@@ -854,30 +834,77 @@ Response:"""
     return setup | prompt | llm | output_parser
 
 
-def recap_chain(llm: BaseLanguageModel):
+def coach_chain(llm: BaseLanguageModel):
+    """Help a student who is stuck on the practice question already on screen.
+
+    This is where the old `step_chain` discipline was always correct and never
+    belonged: "move the learner forward by exactly one step, do not give the
+    full solution" is wrong for "what does R-squared mean" and exactly right
+    for "I am stuck on this question". The difference is that here there IS a
+    procedure, the student is part-way along it, and the answer is withheld on
+    purpose rather than by accident.
+
+    Takes the question from session state (see utils/practice.py) rather than
+    from the history window, so a long coaching exchange cannot push the
+    question it is coaching on out of view.
+
+    No vision build on purpose. A student who photographs their partial work
+    wants it marked, and that is check_attempt's job.
+    """
     template = (
         DAYTON_PERSONA
         + """
+
+Topic: {topic}
+Estimated learner level: {learner_level}
+What the student is asking for: {request}
 
 """
         + SHARED_POLICY
         + """
 
-Summarize the current session for the student in this exact structure:
-- What you now know
-- What to try next
-- Common pitfalls
+{question_block}
 
-Keep it under 120 words. Only recap what appeared in the conversation; do not
-add course facts that were not discussed.
+Coaching policy (strict):
+1) The question above is fixed. Never write a new practice question, and never
+   restate this one as though it were new. The student is looking at it.
+2) Do exactly what {request} asks for:
+   - hint: one nudge toward the next thing to notice or do. Open with
+     **Hint**. No calculation, no part of the final answer.
+   - clarify: explain what the question is ASKING -- the terms in it, and what
+     a complete answer would need to contain. Open with
+     **What the question is asking**. Do not move toward the answer itself.
+   - worked_step: work ONE step out loud and then stop, short of the result.
+     Open with **One step, worked**. Name what the student should do next
+     themselves.
+3) Never give the final number or the complete interpretation, whatever is
+   asked. If the student asks outright for the answer, say you would rather
+   walk them to it and give the next step instead.
+4) Read the recent chat and do not repeat a hint they have already had. Each
+   turn must add something the previous one did not.
+5) Keep it under 120 words.
+6) End with one short question that invites their attempt.
 
 Recent chat:
 {chat_history}
 
-Recap:"""
+Student message:
+{query}
+
+Response:"""
     )
     prompt = ChatPromptTemplate.from_template(template)
-    return prompt | llm | output_parser
+    setup = RunnableParallel(
+        {
+            "topic": itemgetter("topic"),
+            "learner_level": itemgetter("learner_level"),
+            "request": itemgetter("request"),
+            "question_block": itemgetter("question_block"),
+            "chat_history": itemgetter("chat_history"),
+            "query": itemgetter("query"),
+        }
+    )
+    return setup | prompt | llm | output_parser
 
 
 def get_all_chains(main_llm, light_llm, vision_llm=None):
@@ -903,12 +930,14 @@ def get_all_chains(main_llm, light_llm, vision_llm=None):
         "concept_chain": concept_chain(main_llm),
         "practice_chain": practice_chain(main_llm),
         "check_chain": check_chain(main_llm),
-        "recap_chain": recap_chain(light_llm),
+        # Coaching a stuck student is tutoring judgement, not lookup -- main
+        # model. No vision variant: see coach_chain's docstring.
+        "coach_chain": coach_chain(main_llm),
         # Screenshot turns. Only these three routes have any use for an image:
         # "is this right" (check), "which menu do I click" (software), and
         # "what does this output mean" (concept, which streams concept_chain).
-        # Course facts, assignment briefs, practice questions and recaps do
-        # not get one, so they never pay for the vision model.
+        # Course facts, assignment briefs, and practice questions do not get
+        # one, so they never pay for the vision model.
         "check_chain_vision": check_chain(vision_llm, vision=True),
         "software_chain_vision": software_chain(vision_llm, vision=True),
         "concept_chain_vision": concept_chain(vision_llm, vision=True),

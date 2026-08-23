@@ -12,6 +12,7 @@ from utils.agent_graph import build_ta_agent, run_ta_turn
 from utils.attachments import (
     IMAGE_LIMIT_NOTICE,
     MAX_IMAGES,
+    attachment_query_block,
     describe_images,
     extract_attachments,
 )
@@ -21,6 +22,7 @@ from utils.course_context import (
     get_course_links,
     get_software_context,
 )
+from utils import practice
 from utils.progress import PHASE_FAILED, PHASE_WRITING, ProgressReporter
 from utils.sidebar import sidebar, update_session_stats
 import utils.llm_models as llms
@@ -66,12 +68,14 @@ collection = mongo_db['ISOM 550']
 
 # 3. Setup LLM and chains
 main_tutor = llms.deepseekv4_with_grok_fallback
-claude_haiku = llms.deepseek_v4_flash
+# Facts, software steps and recaps: light, high-traffic work. Wrapped so a
+# DeepSeek outage degrades to a slower answer rather than to no deadline answer.
+light_tutor = llms.deepseek_flash_with_fallback
 agent_llm = llms.openai_gpt56_luna
 
 all_chains = chains.get_all_chains(
     main_tutor,
-    claude_haiku,
+    light_tutor,
     # Screenshot turns are pinned here regardless of which model is
     # tutoring: reading a regression table out of a PNG is a different
     # capability from writing the explanation, and it should not change
@@ -81,9 +85,6 @@ all_chains = chains.get_all_chains(
 class_chain = all_chains['class_chain']
 
 TA_AVATAR = ":material/school:"
-
-# How many student turns between recap cards.
-RECAP_EVERY = 8
 
 
 def _parse_chat_input(raw_input):
@@ -132,13 +133,16 @@ def _stream_answer(stream, progress=None, label=PHASE_WRITING):
 
     placeholder = st.empty()
     chunks = []
+    announced = False
     for chunk in stream:
-        if not chunks:
-            progress.emit(label="Preparing your answer...")
-        else:
-            progress.emit(label=label)
         text = chunk if isinstance(chunk, str) else getattr(chunk, "content", None) or str(chunk)
         chunks.append(text)
+        # Once, on the first real token. Emitting per chunk re-rendered the
+        # status widget on every token and grew the turn's event log by one
+        # entry per token, for a label that never changed after the first.
+        if not announced and text:
+            progress.emit(label=label)
+            announced = True
         placeholder.markdown(ui.escape_md_dollars("".join(chunks)))
     return "".join(chunks)
 
@@ -148,9 +152,9 @@ def _stream_answer(stream, progress=None, label=PHASE_WRITING):
 #
 # Keyed by index into chat_history. Everything a finished turn needs to be
 # redrawn after the closing st.rerun() lives here: provenance, sources,
-# abstention, feedback id, recap. Before this existed those were rendered live
-# and then destroyed by the rerun -- sources and recap cards in particular were
-# computed on every turn and seen by nobody.
+# abstention, feedback id. Before this existed those were rendered live and
+# then destroyed by the rerun -- sources in particular were computed on every
+# turn and seen by nobody.
 # --------------------------------------------------------------------------
 def _set_meta(index: int, **fields) -> None:
     st.session_state.message_meta.setdefault(index, {}).update(fields)
@@ -177,18 +181,44 @@ def _record_feedback(interaction_id: str, key: str) -> None:
     st.toast("Thanks — that helps improve the tutor.", icon=":material/favorite:")
 
 
-def _render_section(section: dict, *, key: str) -> None:
-    """One answer section: its text, its badge, its sources."""
+def _render_section(section: dict, *, key: str, trailing=None) -> None:
+    """One answer section: its text, then one footer row (badge, sources,
+    and `trailing` -- the rating thumbs on the last section)."""
     ui.md(section.get("text", ""))
-    weak = section.get("retrieval_quality") == "weak"
-    ui.render_provenance(
+    ui.render_answer_footer(
         section.get("route", ""),
+        section.get("sources") or [],
+        key=f"sources_{key}",
         abstained=section.get("abstained", False),
-        weak=weak,
+        weak=section.get("retrieval_quality") == "weak",
+        trailing=trailing,
     )
-    ui.render_sources(section.get("sources") or [], key=f"sources_{key}", expanded=weak)
     if section.get("abstained"):
         ui.render_unresolved(get_course_links(), key=f"unresolved_{key}")
+
+
+def _feedback_widget(interaction_id: str):
+    """The thumbs for one turn, or None when the turn has nothing to rate.
+
+    Returned as a callable so the footer row can draw it inline, at the end
+    of the badge + sources line, instead of as a third block underneath.
+    """
+    if not interaction_id:
+        return None
+
+    def draw():
+        if interaction_id in st.session_state.feedback_submitted_ids:
+            st.caption("Rating recorded.")
+            return
+        key = f"feedback_{interaction_id}"
+        st.feedback(
+            "thumbs",
+            key=key,
+            on_change=_record_feedback,
+            args=(interaction_id, key),
+        )
+
+    return draw
 
 
 def _render_ai_message(index: int, content: str, *, is_last: bool) -> None:
@@ -201,6 +231,10 @@ def _render_ai_message(index: int, content: str, *, is_last: bool) -> None:
         if meta.get("attachment_notice"):
             st.warning(meta["attachment_notice"], icon=":material/image_not_supported:")
 
+        # Thumbs sit at the end of the LAST footer row, so the strip under an
+        # answer is one line: badge · sources · rating.
+        trailing = _feedback_widget(meta.get("interaction_id")) if is_last else None
+
         sections = meta.get("sections") or []
         if sections:
             # Redraw the turn the way it streamed: each tool's answer with its
@@ -208,37 +242,28 @@ def _render_ai_message(index: int, content: str, *, is_last: bool) -> None:
             for position, section in enumerate(sections):
                 if position:
                     st.space("small")
-                _render_section(section, key=f"{index}_{position}")
-        else:
-            # Greeting, clarifying turn, or the ungrounded fallback answer.
-            ui.md(content)
-            weak = meta.get("retrieval_quality") == "weak"
-            if meta.get("route"):
-                ui.render_provenance(
-                    meta["route"],
-                    abstained=meta.get("abstained", False),
-                    weak=weak,
+                last = position == len(sections) - 1
+                _render_section(
+                    section, key=f"{index}_{position}", trailing=trailing if last else None
                 )
-            ui.render_sources(
-                meta.get("sources") or [], key=f"sources_{index}", expanded=weak
+        elif meta.get("route"):
+            # The ungrounded fallback answer.
+            ui.md(content)
+            ui.render_answer_footer(
+                meta["route"],
+                meta.get("sources") or [],
+                key=f"sources_{index}",
+                abstained=meta.get("abstained", False),
+                weak=meta.get("retrieval_quality") == "weak",
+                trailing=trailing,
             )
             if meta.get("abstained"):
                 ui.render_unresolved(get_course_links(), key=f"unresolved_{index}")
+        else:
+            # Greeting or clarifying turn: nothing to badge or rate.
+            ui.md(content)
 
         ui.render_recap(meta.get("recap", ""))
-
-        interaction_id = meta.get("interaction_id")
-        if is_last and interaction_id:
-            if interaction_id in st.session_state.feedback_submitted_ids:
-                st.caption("Rating recorded.")
-            else:
-                key = f"feedback_{interaction_id}"
-                st.feedback(
-                    "thumbs",
-                    key=key,
-                    on_change=_record_feedback,
-                    args=(interaction_id, key),
-                )
 
         if is_last and st.session_state.get("show_diagnostics") and meta.get("diagnostics"):
             ui.render_diagnostics(meta["diagnostics"], key=f"diag_{index}")
@@ -360,10 +385,15 @@ def _resolve_pending_intent(pending, selected_value, typed_query, uploaded_files
             return typed_query, True, False
 
         if needs == "topic":
-            # Pill selection (or typed exact topic label) with subtopics -> ask subtopic next.
-            if choice in chains.CURRICULUM_TOPICS and chains.get_subtopics(choice):
+            # Pill selection (or typed exact module label) -> ask for the
+            # subtopic next, unless the module has only one, in which case the
+            # second click would be a question with one answer.
+            subtopics = chains.get_subtopics(choice) if choice in chains.curriculum_topics() else []
+            if len(subtopics) > 1:
                 _advance_to_subtopic_selection(pending, choice)
                 return "", False, True
+            if len(subtopics) == 1:
+                choice = chains.format_topic_focus(choice, subtopics[0])
             return chains.compose_quick_action_query(intent, topic=choice), False, False
 
         focus = chains.format_topic_focus(pending.get("parent_topic", ""), choice)
@@ -388,7 +418,6 @@ def main():
     st.session_state.setdefault("pending_intent", None)
     st.session_state.setdefault("last_practice_topic", "")
     st.session_state.setdefault("message_meta", {})
-    st.session_state.setdefault("student_turns", 0)
 
     st.title("ISOM 550 Virtual TA")
     sidebar_settings = sidebar()
@@ -431,7 +460,7 @@ def main():
         st.caption("Suggested topics")
         selected_topic = st.pills(
             "Course topics",
-            options=chains.CURRICULUM_TOPICS,
+            options=chains.curriculum_topics(),
             selection_mode="single",
             key="clarify_topic_pills",
             label_visibility="collapsed",
@@ -581,7 +610,8 @@ def main():
     # The router reads this line instead of the pixels; the images themselves
     # go round the agent loop and straight to the chain (see build_ta_agent).
     query_for_model = (
-        f"{user_query}{attachment_note}{describe_images(images)}{attachment_context}"
+        f"{user_query}{attachment_note}{describe_images(images)}"
+        f"{attachment_query_block(attachment_context)}"
     )
     learning_profile = chains.build_learning_profile(
         query=query_for_model,
@@ -641,6 +671,8 @@ def main():
                 progress=progress,
                 memory_window=sidebar_settings["memory_window"],
                 images=images,
+                practice_session=st.session_state.get("practice_session"),
+                attachment_text=attachment_context,
             )
             # Routing + hybrid retrieval happen inside run_ta_turn (agent +
             # tools), and report their own progress as they go.
@@ -692,14 +724,12 @@ def main():
                         progress.emit(label=section_label)
                         text = step.static_answer
                         ui.md(text)
-                    weak = step.retrieval_quality == "weak"
-                    ui.render_provenance(
-                        step.tool_name, abstained=step.abstained, weak=weak
-                    )
-                    ui.render_sources(
+                    ui.render_answer_footer(
+                        step.tool_name,
                         step.retrieval_debug,
                         key=f"sources_live_{position}",
-                        expanded=weak,
+                        abstained=step.abstained,
+                        weak=step.retrieval_quality == "weak",
                     )
                     if step.abstained:
                         ui.render_unresolved(
@@ -833,6 +863,34 @@ def main():
     if practice_topic:
         st.session_state.last_practice_topic = practice_topic
 
+    # Practice session state is written HERE, not in the tool: generate_practice
+    # returns stream_ready and the question text only exists once the stream has
+    # produced it. Same split `last_practice_topic` already uses.
+    _asked = next(
+        (sec for sec in sections
+         if sec["route"] == "generate_practice" and not sec["abstained"]),
+        None,
+    )
+    if _asked:
+        _difficulty = next(
+            (t.get("difficulty") for t in (turn_result.get("trace") or [])
+             if t.get("tool") == "generate_practice"),
+            "same",
+        )
+        st.session_state.practice_session = practice.start(
+            question=_asked["text"], topic=practice_topic, difficulty=_difficulty,
+        )
+    elif any(sec["route"] == "coach_practice" for sec in sections):
+        st.session_state.practice_session = practice.record_hint(
+            st.session_state.get("practice_session")
+        )
+    elif any(sec["route"] == "check_attempt" for sec in sections):
+        # Deliberately does not clear the session: a student who has just been
+        # given feedback is the most likely person to revise and resubmit.
+        st.session_state.practice_session = practice.record_attempt(
+            st.session_state.get("practice_session")
+        )
+
     # append AI response to chat history
     history_user_text = (display_user_text or user_query) + attachment_note
     st.session_state.chat_history.append(HumanMessage(history_user_text))
@@ -897,21 +955,6 @@ def main():
         retrieval_quality=retrieval_quality,
         progress=progress.summary(),
     )
-
-    # Recap card every few student turns. Stored on the message rather than
-    # written here: everything drawn after this point is wiped by the rerun.
-    st.session_state.student_turns += 1
-    if st.session_state.student_turns % RECAP_EVERY == 0:
-        try:
-            recap_text = all_chains["recap_chain"].invoke({
-                "chat_history": chains.format_chat_history(
-                    st.session_state.chat_history,
-                    max_messages=sidebar_settings["memory_window"],
-                )
-            })
-            _set_meta(ai_index, recap=f"**Where you are so far**\n\n{recap_text}")
-        except Exception:
-            pass
 
     st.rerun()
 

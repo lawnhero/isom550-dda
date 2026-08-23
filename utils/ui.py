@@ -123,6 +123,17 @@ ROUTE_META = {
         "color": "green",
         "help": "Generated for you. Not a past exam question.",
     },
+    "coach_practice": {
+        "working": "Working out where you're stuck",
+        "done": "Coached you on the open question",
+        "badge": "Practice coaching",
+        "icon": ":material/lightbulb:",
+        "color": "green",
+        "help": (
+            "Guidance on the practice question you have open. Stops short of "
+            "the answer on purpose."
+        ),
+    },
     "check_attempt": {
         "working": "Reviewing your attempt",
         "done": "Reviewed your attempt",
@@ -248,29 +259,39 @@ def render_provenance(
     st.badge(meta["badge"], icon=meta["icon"], color=meta["color"], help=meta["help"])
 
 
-def render_sources(rows, *, key: str, expanded: bool = False) -> None:
-    """Retrieved course material behind an answer.
+def render_sources(rows, *, key: str, weak: bool = False) -> None:
+    """Retrieved course material behind an answer, as a compact popover.
 
     This used to be gated on a tool name that no longer exists
     (`answer_logistics`), so it never rendered at all. Any retrieval-backed
     route shows its sources now.
 
-    Opened by default on a loose match: telling a student the grounding is
-    thin, and then hiding what it was grounded in, asks them to take the
-    warning on faith.
+    A popover rather than an expander so it sits on one row with the
+    provenance badge and the rating thumbs (see render_answer_footer). The
+    expander was a full-width block, which pushed the footer to three lines
+    under every answer. On a loose match the label says so, since a popover
+    cannot be opened by default the way the expander was.
     """
     if not rows:
         return
-    with st.expander(
-        f"Sources ({len(rows)})",
-        expanded=expanded,
+    label = f"Sources ({len(rows)})"
+    if weak:
+        label += " — check these"
+    with st.popover(
+        label,
+        type="tertiary",
         icon=":material/library_books:",
         key=key,
+        help="The course material this answer was drawn from.",
     ):
         for row in rows:
             source = row.get("source") or "Unknown source"
             url = (row.get("url") or "").strip()
             preview = (row.get("preview") or "").strip()
+            # Both indexes open the chunk text with the document title, which
+            # the line above already shows.
+            if source and preview.startswith(source):
+                preview = preview[len(source):].strip()
             # Linked when the index knows where the document lives. A student
             # who wants to check the tutor should be one click from the Canvas
             # page, not left to search for a title they were shown.
@@ -280,6 +301,30 @@ def render_sources(rows, *, key: str, expanded: bool = False) -> None:
                 st.markdown(f"**{source}**")
             if preview:
                 st.caption(preview)
+
+
+def render_answer_footer(
+    route_label: str,
+    rows,
+    *,
+    key: str,
+    abstained: bool = False,
+    weak: bool = False,
+    trailing=None,
+) -> None:
+    """The one-line strip under an answer: badge, sources, and (optionally)
+    whatever the caller wants at the end of the row -- the rating thumbs on
+    the last section of a turn.
+
+    One horizontal container, vertically centred, so the badge, the sources
+    popover and the thumbs read as a single status line rather than three
+    stacked blocks of different heights.
+    """
+    with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+        render_provenance(route_label, abstained=abstained, weak=weak)
+        render_sources(rows or [], key=key, weak=weak)
+        if trailing is not None:
+            trailing()
 
 
 def render_unresolved(links: dict, *, key: str) -> None:
@@ -377,8 +422,12 @@ QUICK_ACTIONS = [
 
 # Concrete openers for the empty state, spanning all four grounded routes so
 # the first click teaches the student what this tutor actually covers.
+#
+# Every one of these must be answerable from the current course data. The
+# first used to be "When is the midterm exam?" while no midterm date existed
+# in schedule.json or facts.toml, so the very first suggested click abstained.
 STARTER_PROMPTS = [
-    "When is the midterm exam?",
+    "When are office hours, and where?",
     "What do I need to do for Individual Eastville Part 1 assignment?",
     "What did we cover in class recently?",
     "How do I run a regression in JMP?",
@@ -495,7 +544,12 @@ FOLLOW_UPS = {
     "answer_course_documents": [_STEPS, _EXPLAIN, _WHATS_DUE],
     "answer_concept": [_PRACTICE_SAME, _SIMPLER, _IN_SOFTWARE],
     "answer_software": [_READ_OUTPUT, _EXPLAIN, _PRACTICE_SAME],
+    # _HINT finally has a route behind it: before coach_practice existed this
+    # chip sat under every practice question and was answered by whatever the
+    # router happened to pick -- often generate_practice, which replaced the
+    # question the student was asking for help with.
     "generate_practice": [_CHECK, _HINT, _PRACTICE_HARDER],
+    "coach_practice": [_CHECK, _HINT, _EXPLAIN],
     "check_attempt": [_WHY_WRONG, _PRACTICE_HARDER, _EXPLAIN],
 }
 

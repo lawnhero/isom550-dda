@@ -9,6 +9,7 @@ from langchain_core.tools import StructuredTool
 import utils.chains_lcel as chains
 import utils.ui as ui
 from utils.progress import ProgressReporter
+from utils import practice
 from utils.retrieval import (
     RetrievalResult,
     _extract_source_label,
@@ -184,6 +185,90 @@ def _filter_only_question(doc_type: str, days_back: int, on_date: str, date_span
     )
 
 
+def _squash(text: str) -> str:
+    return " ".join((text or "").split()).lower()
+
+
+def _attachment_bodies(attachment_text: str) -> List[str]:
+    """The squashed body of each attached file, marker lines removed."""
+    bodies = []
+    for block in (attachment_text or "").split("--- Attached file:"):
+        body = block.split("---", 1)[-1] if "---" in block else block
+        body = _squash(body)
+        if body:
+            bodies.append(body)
+    return bodies
+
+
+def _merge_attachment(attempt_text: str, attachment_text: str) -> str:
+    """The attempt the checker should grade, given what the router wrote and
+    what the student actually attached.
+
+    The router is told not to copy attachments, and does anyway -- observed:
+    882 of 1,925 characters, then it stopped. So the attachment in the closure
+    is authoritative, and the router's text is kept only where it adds the
+    student's own words:
+
+      attachment fully inside attempt   -> already there, keep the attempt
+      attempt inside the attachment     -> a (partial) copy, replace it
+      otherwise                         -> their own words plus a copy, or
+                                           no copy; append the attachment.
+                                           Some duplication beats truncation.
+
+    Whitespace-normalised throughout, because a copying model drops the
+    marker line and reflows the text.
+    """
+    attempt_text = (attempt_text or "").strip()
+    if not attachment_text:
+        return attempt_text
+    attempt = _squash(attempt_text)
+    bodies = _attachment_bodies(attachment_text)
+    if attempt and all(body in attempt for body in bodies):
+        return attempt_text
+    if attempt and any(attempt in body for body in bodies):
+        return attachment_text
+    return f"{attempt_text}\n\n{attachment_text}" if attempt_text else attachment_text
+
+
+def _concept_focus(found: RetrievalResult) -> str:
+    """The concept a strong Tier B hit was about, as a practice topic.
+
+    "Practice this" used to drill a keyword-inferred curriculum label:
+    "What does an R-squared of 0.62 mean?" matched the word "r-squared" under
+    "Regression", and the chip composed a request to practise Regression --
+    while the tool had just retrieved the concept titled "Interpreting
+    R-squared" at distance 0.43. The retrieved concept IS the topic; the six
+    hand-written labels are the wrong granularity (and the module is only
+    slightly better -- multiple-regression holds seven concepts).
+    """
+    if not found.docs:
+        return ""
+    metadata = getattr(found.docs[0], "metadata", {}) or {}
+    if not metadata.get("concept_id"):
+        return ""
+    if found.quality == "strong":
+        return str(metadata.get("title") or "").strip()
+    # A loose hit still landed in a module; that is a better topic than a
+    # keyword guess at the question, and it comes from the same retrieval.
+    from utils.concept_taxonomy import module_label
+
+    return module_label(str(metadata.get("module") or ""))
+
+
+# Grounding a practice question in a concept needs a much closer match than
+# answering one. A student's question is a sentence; a practice topic is two
+# or three words, and short strings sit closer to everything: "Regression"
+# alone scores 1.24 against an unrelated concept, "Bayes theorem" 1.21 --
+# both inside the 1.40 "strong" band. A concept title scores ~0.4-0.6.
+PRACTICE_GROUND_MAX_DISTANCE = 1.0
+# When the topic came from a pill it arrives as "Module: Topic", and the
+# module becomes a filter. Inside the right module the nearest concept is the
+# right one by construction, so the bar can be looser: measured across every
+# pill, "Simple regression: Slope" sits at 0.73 with the filter and the worst
+# ("Multiple regression: Model building ...") at 1.07.
+PRACTICE_GROUND_MAX_DISTANCE_IN_MODULE = 1.2
+
+
 def _in_conversation(chat_history) -> bool:
     """True once the student has said something before this turn.
 
@@ -196,6 +281,16 @@ def _in_conversation(chat_history) -> bool:
 ABSTAIN_MESSAGE = (
     "I don't have enough information in the course materials to answer that reliably. "
     "Please check the syllabus or ask your instructor."
+)
+
+# What check_chain sees in place of a practice question when none is open.
+# Most attempts are a student's own assignment work, not an answer to a
+# generated drill, so an empty slot is the normal case and must not read as a
+# missing one -- the prompt used to tell the model to announce it was grading
+# without the question, which is noise on every homework check.
+NO_HELD_QUESTION = (
+    "(No practice question is open. The student is checking their own work: "
+    "take the task from their attempt and the recent chat.)"
 )
 
 
@@ -309,7 +404,7 @@ def _prepare_rag_tool(
         memory_window=memory_window,
     )
     sources = _extract_source_labels(found.docs)
-    practice_topic = chains.infer_curriculum_topic(query)
+    practice_topic = _concept_focus(found) or chains.infer_curriculum_topic(query)
     step.sources = sources
     step.practice_topic = practice_topic
     step.stream_spec = _stream_spec(chain_key, payload, images)
@@ -348,8 +443,21 @@ def build_ta_tools(
     progress: Optional[ProgressReporter] = None,
     memory_window: int = chains.DEFAULT_MEMORY_WINDOW,
     images: Optional[List[Dict[str, str]]] = None,
+    practice_session: Optional[Dict[str, Any]] = None,
+    attachment_text: str = "",
 ):
     """Build agent tools that prepare retrieval/payloads for streamed LCEL answers.
+
+    `practice_session` is the question currently on the student's screen (see
+    utils/practice.py). The tools READ it; app.py writes it after the stream,
+    because the question text does not exist until the stream has produced it.
+
+    `attachment_text` is the decoded content of any text/PDF the student
+    attached (see attachments.extract_attachments). It reaches check_attempt
+    through this closure, the same way screenshots do, rather than by asking
+    the router to copy it into `attempt_text`: the router writes tool calls
+    under an output-token cap, and an attached file can be thousands of
+    characters, so copying truncated the call into invalid JSON.
 
     `progress` receives a line per meaningful step inside each tool. The tools
     run in ToolNode's thread pool, so those lines are buffered and painted at
@@ -364,6 +472,7 @@ def build_ta_tools(
     # that -- so the agent loop is not paying image tokens on every hop, and a
     # model cannot mangle a base64 blob while writing a tool call.
     images = list(images or [])
+    attachment_text = (attachment_text or "").strip()
 
     def _history_text() -> str:
         return chains.format_chat_history(chat_history, max_messages=memory_window)
@@ -668,15 +777,50 @@ def build_ta_tools(
         """Generate one MBA-style practice question for a topic.
 
         Args:
-            topic: What to drill. Leave empty to reuse the topic already under
-                discussion in the conversation.
+            topic: What to drill, as specifically as the student named it --
+                "Interpreting R-squared", not "Regression"; "folding back a
+                decision tree", not "Decision analysis". Leave empty to reuse
+                the topic already under discussion in the conversation.
             difficulty: "same" (default), or "harder" for a tougher variant of
                 the topic the student just practised.
         """
         topic = (topic or "").strip() or chains.infer_topic_from_history(chat_history) or "General analytics"
         difficulty = (difficulty or "same").strip().lower()
-        if difficulty not in {"same", "harder"}:
+        if difficulty not in practice.DIFFICULTIES:
             difficulty = "same"
+        step = artifacts.new_step("generate_practice")
+
+        # Ground the question in the concept the topic names, when the index
+        # has one that close. The concept row carries the instructor's own
+        # framing and the common student mistake, which is what separates a
+        # drill on THIS course's R-squared from a generic one. A topic that
+        # matches nothing closely (a bare "Regression") gets no grounding
+        # rather than a loosely related concept's mistake to target.
+        concept_context = ""
+        grounded_on = ""
+        module_id = ""
+        if contents_db is not None:
+            from utils.concept_taxonomy import split_focus
+
+            # "Simple regression: R-squared and model fit" names its module,
+            # and the module is a FILTER here, not the topic. Without it that
+            # exact string grounded on a logistic-regression concept (0.89,
+            # inside the bar) because "model" and "regression" pulled harder
+            # than "R-squared".
+            module_id, _ = split_focus(topic)
+            found = search_concepts(
+                contents_db, topic, module=module_id, top_k=1, in_conversation=True
+            )
+            bar = (
+                PRACTICE_GROUND_MAX_DISTANCE_IN_MODULE if module_id
+                else PRACTICE_GROUND_MAX_DISTANCE
+            )
+            if found.docs and found.best_distance <= bar:
+                concept_context = chains._format_docs(found.docs)
+                grounded_on = _extract_source_labels(found.docs)[0]
+                step.sources = [grounded_on]
+                step.retrieval_debug = retrieval_debug_rows(found.docs)
+                progress.emit(detail=f"Grounding the question in “{grounded_on}”")
 
         payload = {
             "topic": topic,
@@ -684,8 +828,20 @@ def build_ta_tools(
             "learning_objective": chains.infer_learning_objective(topic),
             "learner_level": chains.infer_learner_level(chat_history),
             "chat_history": _history_text(),
+            # So a "harder" variant escalates the question on screen instead of
+            # silently restating it.
+            "previous_question": practice.question_of(practice_session),
+            "concept_context": concept_context or "(none — write from your own knowledge of the topic)",
         }
-        step = artifacts.new_step("generate_practice")
+        # A student who has asked for help on the live question and then gets a
+        # brand-new one has almost certainly been misrouted: they said "I'm
+        # stuck", not "give me another". Not blocked here -- the router is an
+        # LLM and a hard block would break a genuine "ask me a different one" --
+        # but recorded, so the rate is measurable before anything is hardened.
+        probable_misroute = (
+            practice.is_active(practice_session)
+            and int(practice_session.get("hints_given") or 0) > 0
+        )
         progress.emit(
             detail=f"Writing a {difficulty}-difficulty practice question on {topic}"
         )
@@ -693,7 +849,10 @@ def build_ta_tools(
         step.stream_spec = StreamSpec(chain_key="practice_chain", payload=payload)
         step.trace = {
             "tool": "generate_practice", "chain": "practice_chain",
-            "retrieval": False, "topic": topic, "difficulty": difficulty,
+            "retrieval": bool(concept_context), "topic": topic,
+            "module": module_id or "(none)",
+            "difficulty": difficulty, "grounded_on": grounded_on or "(none)",
+            "probable_misroute": probable_misroute,
         }
 
         result = ToolExecutionResult(
@@ -705,21 +864,92 @@ def build_ta_tools(
         )
         return _serialize_tool_result(result)
 
+    def coach_practice(query: str, request: str = "hint") -> str:
+        """Help the student with the practice question already on their screen.
+
+        Args:
+            query: The student's message, copied verbatim.
+            request: "hint" for one nudge toward the next move, "clarify" to
+                explain what the question is asking without moving toward the
+                answer, or "worked_step" to work one step and stop short of the
+                result. Defaults to "hint".
+        """
+        step = artifacts.new_step("coach_practice")
+        if not practice.is_active(practice_session):
+            # Coaching nothing is worse than admitting there is nothing to
+            # coach: the student would get a confident hint about a question
+            # that is not on their screen.
+            answer = (
+                "I don't have a practice question open right now. Ask me for "
+                "one and I'll walk you through it."
+            )
+            step.static_answer = answer
+            progress.emit(detail="No practice question in session — nothing to coach")
+            step.trace = {
+                "tool": "coach_practice", "chain": None, "retrieval": False,
+                "practice_active": False,
+            }
+            return _serialize_tool_result(
+                ToolExecutionResult(
+                    answer=answer,
+                    tool_name="coach_practice",
+                    stream_ready=False,
+                    step_id=step.step_id,
+                )
+            )
+
+        # What the student asked for is not always what they are owed: a fourth
+        # hint on a question they have been stuck on three times is stalling.
+        resolved = practice.effective_request(practice_session, request)
+        topic = practice.topic_of(practice_session) or "General analytics"
+        payload = {
+            "topic": topic,
+            "learner_level": chains.infer_learner_level(chat_history),
+            "request": resolved,
+            "question_block": practice.prompt_block(practice_session),
+            "chat_history": _history_text(),
+            "query": query or "",
+        }
+        progress.emit(
+            detail=f"Coaching on the open question ({resolved.replace('_', ' ')})"
+        )
+        step.practice_topic = topic
+        step.stream_spec = StreamSpec(chain_key="coach_chain", payload=payload)
+        step.trace = {
+            "tool": "coach_practice", "chain": "coach_chain", "retrieval": False,
+            "topic": topic, "requested": request, "resolved": resolved,
+            "hints_given": practice_session.get("hints_given", 0),
+            "practice_active": True,
+        }
+        return _serialize_tool_result(
+            ToolExecutionResult(
+                answer="Prepared coaching for streaming.",
+                practice_topic=topic,
+                tool_name="coach_practice",
+                stream_ready=True,
+                step_id=step.step_id,
+            )
+        )
+
     def check_attempt(attempt_text: str, topic: str = "") -> str:
         """Check a student's attempt and return rubric-style feedback.
 
         Args:
-            attempt_text: The student's work, copied in full and verbatim.
-                Include the contents of any "--- Attached file: ... ---" block
-                in their message; that block IS the attempt. If the work is in
-                an attached screenshot, pass whatever the student typed (or
-                leave this empty) -- the image is shown to the chain either
-                way, so do not describe or transcribe it here.
+            attempt_text: What the student TYPED, copied verbatim. Do not copy
+                the contents of any "--- Attached file: ... ---" block -- the
+                attached file is handed to the checker automatically, so pass
+                only the student's own words (or leave this empty when the
+                attempt is entirely in the attachment). If the work is in a
+                screenshot, the image is shown to the chain either way; do
+                not describe or transcribe it here.
             topic: What the attempt is about. Leave empty to infer it from the
                 conversation.
         """
         attempt_text = (attempt_text or "").strip()
         step = artifacts.new_step("check_attempt")
+        # The attached file is the attempt, or most of it, and it comes from
+        # the closure -- never trust the router's copy of it.
+        attempt_text = _merge_attachment(attempt_text, attachment_text)
         if not attempt_text and images:
             # An uploaded screenshot with no typed words is the single most
             # common way a student says "check my work". Asking them to paste
@@ -747,6 +977,10 @@ def build_ta_tools(
             "learning_objective": chains.infer_learning_objective(topic),
             "learner_level": chains.infer_learner_level(chat_history),
             "chat_history": _history_text(),
+            # The question itself, not a recollection of it. Held in session
+            # state because the recent-chat window is 8 messages -- four turns --
+            # and question/hint/clarify/attempt is exactly four.
+            "question": practice.question_of(practice_session) or NO_HELD_QUESTION,
         }
         progress.emit(
             detail=f"Reviewing your attempt on {topic} ({len(attempt_text):,} chars)"
@@ -757,6 +991,7 @@ def build_ta_tools(
             "tool": "check_attempt", "chain": step.stream_spec.chain_key,
             "retrieval": False, "topic": topic,
             "images": len(images),
+            "held_question": bool(practice.question_of(practice_session)),
         }
 
         result = ToolExecutionResult(
@@ -827,6 +1062,20 @@ def build_ta_tools(
             func=generate_practice,
             name="generate_practice",
             description="Generate one practice question for a topic. Use difficulty 'harder' for a tougher variant.",
+            parse_docstring=True,
+        ),
+        StructuredTool.from_function(
+            func=coach_practice,
+            name="coach_practice",
+            description=(
+                "Help with the practice question ALREADY on the student's screen. "
+                "Use this for every 'I'm stuck', 'give me a hint', 'I don't "
+                "understand', 'this is confusing' or 'what is it asking' while a "
+                "practice question is open -- never generate_practice, which would "
+                "replace the question they are working on. Set request='hint' for a "
+                "nudge, 'clarify' to explain what the question is asking, or "
+                "'worked_step' to work one step for them."
+            ),
             parse_docstring=True,
         ),
         StructuredTool.from_function(

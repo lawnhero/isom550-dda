@@ -39,6 +39,9 @@ def show_help_dialog():
         "- :blue-badge[Class materials] — the indexed course content\n"
         "- :violet-badge[JMP / Excel guidance] — general knowledge of the software, "
         "grounded by this course's versions and conventions\n"
+        "- :green-badge[Practice question] / :green-badge[Practice coaching] / "
+        ":green-badge[Feedback on your attempt] — generated for you, not taken "
+        "from past exams\n"
         "- :gray-badge[General tutoring] — no course lookup happened\n\n"
         "If the tutor cannot find something, it says so rather than guessing."
     )
@@ -48,8 +51,9 @@ def show_help_dialog():
         "- Build on previous answers instead of starting over\n"
         "- State your assumptions so the tutor can correct them early\n"
         "- Ask for hints when you want guided practice rather than the answer\n"
-        "- Attach a .txt, .csv, or .pdf and I will read it. I cannot read "
-        "screenshots yet, so paste output as text"
+        "- Attach a .txt, .csv, or .pdf and I will read it. Screenshots of "
+        "your JMP or Excel output work too — I will read the values back to "
+        "you first so you can catch a misread"
     )
     st.subheader("Good to know")
     st.markdown(
@@ -65,8 +69,8 @@ _CONVERSATION_KEYS = (
     "message_meta",
     "pending_intent",
     "last_practice_topic",
+    "practice_session",
     "feedback_submitted_ids",
-    "student_turns",
     "clarify_topic_pills",
     "clarify_subtopic_pills",
     "starter_prompt_pills",
@@ -139,7 +143,7 @@ def sidebar():
                 max_value=16,
                 step=2,
                 key="memory_window",
-                help="Number of recent messages considered before using summary memory.",
+                help="Number of recent messages included in each tutoring prompt.",
             )
             show_diagnostics = st.toggle(
                 "Show agent diagnostics",

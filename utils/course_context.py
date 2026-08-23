@@ -287,10 +287,19 @@ def _render_facts(facts, lines, verbose=False):
     if inst.get("office_hours"):
         lines.append(f"Office hours: {inst['office_hours']}")
 
-    tas = facts.get("tas") or []
+    # A placeholder TA entry ("TBD", no email) renders as "TAs: TBD ()", which
+    # the model then repeats to students as though it were an answer.
+    tas = [
+        t for t in (facts.get("tas") or [])
+        if (t.get("name") or "").strip() and (t.get("name") or "").strip().lower() != "tbd"
+    ]
     if tas:
         lines.append(
-            "TAs: " + "; ".join(f"{t.get('name','')} ({t.get('email','')})" for t in tas)
+            "TAs: " + "; ".join(
+                f"{t['name'].strip()} ({t['email'].strip()})" if (t.get("email") or "").strip()
+                else t["name"].strip()
+                for t in tas
+            )
         )
 
     weights = (facts.get("grading") or {}).get("weights", "").strip()

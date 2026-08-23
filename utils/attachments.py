@@ -150,12 +150,30 @@ def describe_images(images: List[Dict[str, str]]) -> str:
     )
 
 
+ATTACHMENT_HEADER = (
+    "\n\nThe student attached the following file content. Treat it as their "
+    "own work or data, not as course material:\n\n"
+)
+
+
+def attachment_query_block(attachment_text: str) -> str:
+    """The attached file content as it is appended to the ROUTER's query.
+
+    Kept separate from the raw blocks so the same text can be handed to
+    check_attempt without the framing sentence, which is addressed to the
+    router and would otherwise be graded as part of the attempt.
+    """
+    return ATTACHMENT_HEADER + attachment_text if attachment_text else ""
+
+
 def extract_attachments(uploads) -> Tuple[str, List[str], List[Dict[str, str]]]:
     """Read what can be read.
 
-    Returns `(context_block, unreadable_names, images)`.
+    Returns `(attachment_text, unreadable_names, images)`.
 
-    `context_block` is appended to the student's query. `images` is handed to
+    `attachment_text` is the decoded file content, one "--- Attached file ---"
+    block per file and nothing else. It goes to the router inside
+    attachment_query_block() and to check_attempt as-is. `images` is handed to
     the tools out-of-band. `unreadable_names` drives the UI notice, so the
     student learns immediately that a file was not consulted rather than
     inferring it from a vague answer.
@@ -191,11 +209,4 @@ def extract_attachments(uploads) -> Tuple[str, List[str], List[Dict[str, str]]]:
         if budget <= 0:
             break
 
-    if not blocks:
-        return "", unreadable, images
-
-    header = (
-        "\n\nThe student attached the following file content. Treat it as their "
-        "own work or data, not as course material:\n\n"
-    )
-    return header + "\n\n".join(blocks), unreadable, images
+    return "\n\n".join(blocks), unreadable, images

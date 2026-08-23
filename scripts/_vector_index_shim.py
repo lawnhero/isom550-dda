@@ -50,6 +50,13 @@ def run_build(course_name, kind, dry_run=False, strict=False):
         mark = "!!" if not row["written"] else "  "
         extra = f"  (+{row['planned']} planned)" if row["planned"] else ""
         print(f"  {mark} {row['module']:26s} {row['written']:2d} written{extra}")
+    if result.get("outline"):
+        print("\n  Pills the app will offer (module -> topics):")
+        for module in result["outline"]:
+            topics = ", ".join(
+                f"{t['label']} ({t['n_concepts']})" for t in module["topics"]
+            )
+            print(f"    {module['module']}: {topics}")
     if result.get("empty_modules"):
         print(f"\n!! {len(result['empty_modules'])} modules have nothing written: "
               + ", ".join(result["empty_modules"]))

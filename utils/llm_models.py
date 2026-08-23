@@ -64,18 +64,37 @@ class ModelWithFallback(BaseChatModel):
             return await self.fallback.ainvoke(*args, **kwargs)
 
     def stream(self, *args, **kwargs):
+        # BaseChatModel.stream is a generator function: calling it builds a
+        # lazy generator and cannot raise. The request is only sent on the
+        # first next(), so the failure has to be caught there. Once a chunk has
+        # been yielded the primary owns the answer -- switching models
+        # mid-sentence would splice two different replies together.
         try:
-            return self.primary.stream(*args, **kwargs)
+            primary = self.primary.stream(*args, **kwargs)
+            first = next(primary)
+        except StopIteration:
+            return
         except Exception as e:
             self._log_fallback(e, "stream")
-            return self.fallback.stream(*args, **kwargs)
+            yield from self.fallback.stream(*args, **kwargs)
+            return
+        yield first
+        yield from primary
 
     async def astream(self, *args, **kwargs):
         try:
-            return await self.primary.astream(*args, **kwargs)
+            primary = self.primary.astream(*args, **kwargs)
+            first = await primary.__anext__()
+        except StopAsyncIteration:
+            return
         except Exception as e:
             self._log_fallback(e, "astream")
-            return await self.fallback.astream(*args, **kwargs)
+            async for chunk in self.fallback.astream(*args, **kwargs):
+                yield chunk
+            return
+        yield first
+        async for chunk in primary:
+            yield chunk
 
     @property
     def _llm_type(self) -> str:
@@ -90,10 +109,18 @@ def create_model_with_fallback(
     return ModelWithFallback(primary=primary_model, fallback=fallback_model)
 
 
+# Router budget. A tool call is JSON the model has to write out, and a turn can
+# carry two of them plus a verbatim `attempt_text`. 300 was enough for a query
+# string and nothing else: a pasted paragraph truncated the call mid-JSON and
+# the turn failed with nothing to retry. Attached files no longer travel
+# through this channel (see ta_tools.check_attempt), so this only has to cover
+# what the student typed.
+ROUTER_MAX_TOKENS = 900
+
 openai_gpt56_luna = ChatOpenAI(
     temperature=TEMPERATURE,
     model="gpt-5.6-luna",
-    max_tokens=300,
+    max_tokens=ROUTER_MAX_TOKENS,
     reasoning_effort="none",  # required for /v1/chat/completions + tool calling
 )
 
@@ -101,9 +128,9 @@ openai_gpt56_luna = ChatOpenAI(
 openai_gpt4o_mini = openai_gpt56_luna
 
 # Vision route. Every screenshot turn is pinned here rather than to the usual
-# tutoring model: the instance above is the cheap dispatch build, capped at 300
-# tokens for tool calling, and a "check my JMP output" answer needs the full
-# budget plus room to transcribe what it read back to the student first.
+# tutoring model: the instance above is the dispatch build with a tool-calling
+# budget, and a "check my JMP output" answer needs the full budget plus room
+# to transcribe what it read back to the student first.
 openai_gpt56_luna_vision = ChatOpenAI(
     temperature=TEMPERATURE,
     model="gpt-5.6-luna",
