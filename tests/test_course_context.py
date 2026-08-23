@@ -48,7 +48,11 @@ FACTS = {
 }
 
 
-def test_render_splits_deadlines_and_hides_unposted_announcements():
+def test_render_splits_deadlines_and_hides_unposted_announcements(monkeypatch):
+    # The index advisory reads data/documents/provenance.json from the working
+    # tree; a fake in-memory schedule has no index to vouch for, and whether
+    # that file happens to exist on this machine is not what this test checks.
+    monkeypatch.setattr(cc, "_index_advisories", lambda *a, **k: [])
     block = cc.render(SCHEDULE, FACTS, now=NOW)
     assert "UPCOMING DEADLINES" in block and "Next quiz" in block
     assert "PAST DEADLINES" in block and "Past quiz" in block
