@@ -16,7 +16,7 @@ Student-centered RAG chatbot for MBA Data and Decision Analytics.
   tell grounded course facts from general software knowledge
 - Three follow-up chips after every answer: explain a concept, practice this, check my work
 - Sources expander on any retrieval-backed answer
-- Abstained answers get a recovery panel with the real Canvas link and a mailto
+- Abstained answers get a recovery panel with deep links into Canvas (Announcements, Modules) and a mailto
 - `st.status` line naming what the tutor is looking up; `st.feedback` thumbs per answer
 - Pinned composer with `st.bottom` (chips + chat input stay visible)
 - Clarifying turns for topic/attempt, with a "Never mind" exit and automatic

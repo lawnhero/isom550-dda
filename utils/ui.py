@@ -329,8 +329,17 @@ def render_unresolved(links: dict, *, key: str) -> None:
     with st.container(border=True, key=key):
         st.markdown("**Where to look instead**")
         bullets = ["Rephrase with the assignment name or class date, and I will search again"]
-        if links.get("canvas_url"):
-            bullets.append(f"Check the [course Canvas page]({links['canvas_url']})")
+        base = (links.get("canvas_url") or "").rstrip("/")
+        if base:
+            # Not the course home: students reach this tutor FROM the Canvas
+            # course home page, so that link would point at the page they are
+            # already on. /announcements and /modules are standard Canvas
+            # routes off the course URL, and are where an unanswered logistics
+            # question is usually settled.
+            bullets.append(
+                f"Check [Announcements]({base}/announcements) or "
+                f"[Modules]({base}/modules) on this Canvas site"
+            )
         if links.get("instructor_email"):
             bullets.append(
                 f"Email your instructor: [{links['instructor_email']}]"
