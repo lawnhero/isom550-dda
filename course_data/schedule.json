@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-22T03:59:15Z",
+  "generated_at": "2026-08-25T02:38:31Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -205,6 +205,10 @@
       "url": "https://canvas.emory.edu/courses/165666/pages/excel-sensitivity-analysis-goal-seek-falafel"
     },
     {
+      "title": "Excel Simulation: Numerical Descriptive-Toolpak",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-numerical-descriptive-toolpak"
+    },
+    {
       "title": "Excel Simulation: PivotTable for Data Summarization",
       "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-pivottable-for-data-summarization"
     },
@@ -263,9 +267,24 @@
     {
       "title": "Regression: Use Categorical data Part 1",
       "url": "https://canvas.emory.edu/courses/165666/pages/regression-use-categorical-data-part-1"
+    },
+    {
+      "title": "Simulation Excel: Creating Histogram",
+      "url": "https://canvas.emory.edu/courses/165666/pages/simulation-excel-creating-histogram"
+    },
+    {
+      "title": "Simulation: JMP Start and Descriptive",
+      "url": "https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive"
     }
   ],
   "announcements": [
+    {
+      "title": "Class 1.1 (8/24) Describe One Variable Numerically",
+      "posted_utc": "2026-08-24T20:38:14Z",
+      "posted_local": "Mon Aug 24, 2026, 4:38 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1387337",
+      "body": "It's a pleasure meeting everyone today. I'm hopeful that we will have a great time together exploring how to leverage data for decision making. \nToday in class, we reviewed topics from stats workshop, we implemented Analysis ToolPak in Excel to numerically (w. Descriptive Statistics) describe One Quantitative variable . Obtaining these summaries are important, yet our main focus is on how to interpret these evidence in the context to develop a compelling story from data. And the key is to translate their technical meaning into the problem context. \nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \nAssignments after class:\n\nComplete the Pulse Check Survey (https://canvas.emory.edu/courses/165666/quizzes/292221) due before next class.\nReview simulation on Data Analysis Toolpak (https://canvas.emory.edu/courses/165666/pages/excel-simulation-numerical-descriptive-toolpak) (both Toolpak and Excel functions).\nStudy simulation videos on Excel Histogram (https://canvas.emory.edu/courses/165666/pages/simulation-excel-creating-histogram) and JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive)."
+    },
     {
       "title": "Getting ready for first day of class Monday 8/24",
       "posted_utc": "2026-08-21T19:55:51Z",
