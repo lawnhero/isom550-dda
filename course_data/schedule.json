@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T02:38:31Z",
+  "generated_at": "2026-08-26T19:42:24Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -278,6 +278,13 @@
     }
   ],
   "announcements": [
+    {
+      "title": "Class 1.2 (8/26) Describe One Variable Graphically",
+      "posted_utc": "2026-08-26T19:19:25Z",
+      "posted_local": "Wed Aug 26, 2026, 3:19 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1390266",
+      "body": "Today in class, we discussed how to implement and interpret graphs, such as Histogram (for Quantitative) and Bar Chart (for Categorical).\n\nHistogram offers insights into the observed shape of the data, which is compared to the expected shape from the empirical rule.\n\nIf expected and observed shapes are consistent, then our numerical story checks out.\n\nIf meaningful differences are identified, we might need to identify the reasons, such as missing factors or errors.\n\nIf there is no errors, then we will interpret the skewness.\n\nHINTS: to create the bins, we can use Excel default histogram to get a width for the bins (ex: 236 for sqft). Then we can make judgement call to decide a more appropriate bin size (ex: round up to 250 or round down to 200). \n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nReview simulation on Data Analysis Toolpak (https://canvas.emory.edu/courses/165666/pages/excel-simulation-numerical-descriptive-toolpak) and Excel Histogram (https://canvas.emory.edu/courses/165666/pages/simulation-excel-creating-histogram)\n\nComplete and submit Individual Eastville Assignment (https://canvas.emory.edu/courses/165666/assignments/1272076), due before Wednesday (9/2) class. \n\nStudy the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive)."
+    },
     {
       "title": "Class 1.1 (8/24) Describe One Variable Numerically",
       "posted_utc": "2026-08-24T20:38:14Z",
