@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-28T19:06:06Z",
+  "generated_at": "2026-09-01T02:43:02Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -213,6 +213,10 @@
       "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-pivottable-for-data-summarization"
     },
     {
+      "title": "Excel-Simulation: Scatter plot- Correlation",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation"
+    },
+    {
       "title": "Getting started with Excel (Optional)",
       "url": "https://canvas.emory.edu/courses/165666/pages/getting-started-with-excel-optional"
     },
@@ -278,6 +282,13 @@
     }
   ],
   "announcements": [
+    {
+      "title": "Class 1.4 (8/31) When two numbers move together",
+      "posted_utc": "2026-08-31T21:58:56Z",
+      "posted_local": "Mon Aug 31, 2026, 5:58 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1393062",
+      "body": "When two numbers move together\n\nToday we opened the Pilgrim Bank case — is online banking profitable? — then turned to how two quantitative variables relate. Correlation carries two messages: direction (positive or negative) and strength (how tightly the points travel together), read from a scatter plot and the coefficient r.\n\nNext class (Wed 9/2): when a category splits a number.\n\nSlides, notes, and recording are on the notes and recordings page (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings).\n\nAssignments after class:\n\nPractice scatter plot in Excel with Excel-Simulation: Scatter plot- Correlation (https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation).\n\nRemember to download the license file when installing JMP (https://canvas.emory.edu/courses/165666/pages/download-and-install-jmp-student-edition), and study the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive).\n\nComplete and submit Group Pilgrim Bank Assignment Part 1 (https://canvas.emory.edu/courses/165666/quizzes/292364), due before Monday (9/7) class."
+    },
     {
       "title": "Class 1.3 (8/28) Bar and Location",
       "posted_utc": "2026-08-28T18:39:10Z",
