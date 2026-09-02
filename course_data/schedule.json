@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-01T02:43:02Z",
+  "generated_at": "2026-09-02T18:19:32Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -63,16 +63,6 @@
       "instructions": "Objective:\n\nThis individual class submission is to assess whether students can describe a variable both numerically and graphically. As such, the variables selected for this assignment is \"Price\" and \"School\" based on a short case about a fictional town, Eastville, CT. A description of the situation, and a definition of the data collected, are in this file: Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download) Download Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download). Here is the data in an Excel spreadsheet:Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) Download Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) \n\nTasks: \n\nSpecifically, conduct the following analysis and develop the managerial memo for each analysis. \n\nTask 1: Manually created bins for Price and School District (1 point)\n\nTask 2: Numerical descriptives for \"Price\" and memo on the 3 perspectives, center, spread and extreme values (3 Points)\n\nTask 3: Histogram for \"Price\" and memo on shape of histogram (2 Point)\n\nTask 4: Descriptives for \"School district\" and memo (2 Point)\n\nTask 5: Bar chart for \"School district\" and memo. (2 Point) \n\nHints: Does Pareto bar chart apply here? Can we apply any part of the 20~80 rule?"
     },
     {
-      "name": "Group Pilgrim Bank Part 1: Descriptive",
-      "group": "Post-Class Group Assignments",
-      "kind": "quiz",
-      "due_utc": "2026-09-07T14:00:00Z",
-      "due_local": "Mon Sep 7, 2026, 10:00 AM EDT",
-      "points": 10.0,
-      "url": "https://canvas.emory.edu/courses/165666/assignments/1272080",
-      "instructions": "Objective:\n\nAlan has to try to address the disagreement about online banking and here is case file Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881) Download Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download)and the data file PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854)Download PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)\n\nThere are a few things to note about columns for Age and Income .\n\nFirst, the two columns are nominal (categorical). In JMP you will be able to add these to the regression model without too much trouble because the modeling type has been changed to nominal. \n\nThe original data does not have Age and Income data for all of the customers. JMP will automatically ignore the rows that have missing customer data.\n\nBefore diving in to the analysis, we should first explore the variables and conduct some basic exploratory data analysis to understand the relationships between variables. \n\nTasks:\n\nSpecifically, conduct the following analysis and include the managerial memo for each analysis. \n\n1: Analyze the relationship between 9Profit and 9Tenure. Generate the graphical and numerical descriptives (2 points)\n\n2: Comment on the correlation (2 Points)\n\n3: Analyze the relationship between 9Profit and 9Online. Generate the graphical and numerical descriptives (2 points)\n\n4: Comment on the relationship (2 Points)\n\n5: comment on Alan’s analysis using only descriptive statistics about online banking. Can you recreate Alan’s result of $110.79 for customers who do not use online banking versus $116.67 for those who do? Does this comparison answer the question about the online banking program? Why? (2 Points)"
-    },
-    {
       "name": "Describe Relationship Between Two Variables",
       "group": "Engagement and Participation ",
       "kind": "quiz",
@@ -81,6 +71,16 @@
       "points": 7.0,
       "url": "https://canvas.emory.edu/courses/165666/assignments/1272077",
       "instructions": "Objective:\n\nThis quiz assesses your understanding of analyzing relationships between two variables across different measurement scales. You will demonstrate your ability to select appropriate graphical displays, interpret numerical measures, and draw objective conclusions from bivariate data analysis.\n\nThere is no time limits. \n\nYou can take the quiz two times. The highest grade will be kept. \n\nYou can review the answers to your questions after each attempt. \n\nIf necessarily, study corresponding materials again before attempting the 2nd time."
+    },
+    {
+      "name": "Group Pilgrim Bank Part 1: Descriptive",
+      "group": "Post-Class Group Assignments",
+      "kind": "quiz",
+      "due_utc": "2026-09-11T14:00:00Z",
+      "due_local": "Fri Sep 11, 2026, 10:00 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1272080",
+      "instructions": "Objective:\n\nAlan has to try to address the disagreement about online banking and here is case file Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881) Download Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download)and the data file PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854)Download PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)\n\nThere are a few things to note about columns for Age and Income .\n\nFirst, the two columns are nominal (categorical). In JMP you will be able to add these to the regression model without too much trouble because the modeling type has been changed to nominal. \n\nThe original data does not have Age and Income data for all of the customers. JMP will automatically ignore the rows that have missing customer data.\n\nBefore diving in to the analysis, we should first explore the variables and conduct some basic exploratory data analysis to understand the relationships between variables. \n\nTasks:\n\nSpecifically, conduct the following analysis and include the managerial memo for each analysis. \n\n1: Analyze the relationship between 9Profit and 9Tenure. Generate the graphical and numerical descriptives (2 points)\n\n2: Comment on the correlation (2 Points)\n\n3: Analyze the relationship between 9Profit and 9Online. Generate the graphical and numerical descriptives (2 points)\n\n4: Comment on the relationship (2 Points)\n\n5: comment on Alan’s analysis using only descriptive statistics about online banking. Can you recreate Alan’s result of $110.79 for customers who do not use online banking versus $116.67 for those who do? Does this comparison answer the question about the online banking program? Why? (2 Points)"
     },
     {
       "name": "Eastville Part 2: Simple Regression",
@@ -282,6 +282,13 @@
     }
   ],
   "announcements": [
+    {
+      "title": "Class 1.5 (9/2) Association of Two Categorical Variables",
+      "posted_utc": "2026-09-02T18:16:52Z",
+      "posted_local": "Wed Sep 2, 2026, 2:16 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1394220",
+      "body": "Today in class, we continued to discuss how to describe the association between two variables. Specifically, there are three scenarios: \n\nFor two Quantitative variables, such relationship is called correlation. We use 1) scatter plot and 2) correlation coefficient r. \n\nFor one Categorical x variable and one Quantitative y variable, we use JMP to generate the Diamond graph (or box plot ) and do ANOVA analysis (JMP knows what to do), and observe the group means.\n\nFor TWO Categorical variables, we only observed association. Next class, we will describe it and apply it.\n\nIn addition, we continue to generalize what we observed from the sample to infer about the population. We comment on the questions: should we trust it?\n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nSubmit Relationship between two variables quiz (https://canvas.emory.edu/courses/165666/quizzes/292361) by Wednesday (9/9), 10:00 AM. \n\nPractice scatter plot in Excel with Excel-Simulation: Scatter plot- Correlation (https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation) \n\nStudy the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive).\n\nComplete and submit Group Pilgrim Bank Assignment Part 1 (https://canvas.emory.edu/courses/165666/quizzes/292364), due Friday (9/11), 10:00 AM."
+    },
     {
       "title": "Class 1.4 (8/31) When two numbers move together",
       "posted_utc": "2026-08-31T21:58:56Z",
