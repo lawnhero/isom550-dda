@@ -1,0 +1,453 @@
+# Tier B: the concepts this course teaches.
+#
+# Replaces data/isom550/isom550_contents.csv, a two-column Question/Response
+# sheet that lived outside the repo. What that shape could not express is why
+# this file exists:
+#
+#   - WHICH CLASS a concept belongs to, so coverage can be checked against the
+#     syllabus instead of assumed. The CSV had nothing for Classes 6-10 -- half
+#     the course -- and nothing anywhere said so.
+#   - HOW STUDENTS ACTUALLY ASK, so retrieval matches their words and not the
+#     instructor's. `asked_as` is mined from the real query log, not invented;
+#     see scripts/mine_concept_aliases.py.
+#   - WHICH CONCEPTS TRAVEL TOGETHER. Collinearity is two concepts that are
+#     useless apart, and the four inference concepts are one chain.
+#
+# Edit this file, then rebuild:
+#
+#     python scripts/build_concepts.py --dry-run     # report, embed nothing
+#     python scripts/build_concepts.py               # write the index
+#
+# FIELDS
+#   id         stable slug. Retrieval groups by it, so changing one splits a
+#              concept in two until the next rebuild.
+#   title      what the student sees in the sources expander.
+#   topic      must be one of the topics in [taxonomy] below.
+#   status     "core" (counts toward coverage) or "extension" (does not).
+#   asked_as   student phrasings, each embedded as its own vector. Questions
+#              only -- not statements, not "how do I do X in JMP" (that is the
+#              software route's job, and it does not retrieve).
+#   related    other concept ids to read alongside this one.
+#   body       the answer, verbatim from the instructor apart from spelling.
+
+schema_version = 1
+
+# --------------------------------------------------------------------------
+# Topic vocabulary, one entry per class session. `class` matches the Tier C
+# recap titles so the two indexes can be joined on it, and so the coverage
+# check can name the class that has nothing.
+# --------------------------------------------------------------------------
+[taxonomy]
+data-basics             = { class = "Class 1 (6/29)", label = "Data types and scales" }
+describing-one-variable = { class = "Class 1 (6/29)", label = "Describing one variable" }
+describing-two-variables = { class = "Class 2 (7/1)", label = "Describing two variables" }
+simple-regression       = { class = "Class 3 (7/6)",  label = "Simple linear regression" }
+multiple-regression     = { class = "Class 4 (7/09)", label = "Multiple regression" }
+inference               = { class = "Class 3 (7/6)",  label = "Hypothesis testing and significance" }
+model-building          = { class = "Class 5 (7/13)", label = "Model building and collinearity" }
+logistic-regression     = { class = "Class 6 (7/16)", label = "Residuals and logistic regression" }
+decision-basics         = { class = "Class 7 (7/20)", label = "Decision basics" }
+decision-analysis       = { class = "Class 8 (7/23)", label = "Decision analysis in Excel" }
+sensitivity-analysis    = { class = "Class 9 (7/27)", label = "Sensitivity analysis" }
+value-of-information    = { class = "Class 10 (7/30)", label = "Value of information" }
+
+
+# ==========================================================================
+# Class 1 — data scales, describing one variable
+# ==========================================================================
+
+[[concept]]
+id = "data-scales"
+title = "The four types of data scale"
+topic = "data-basics"
+status = "core"
+related = ["describe-quantitative-variable"]
+asked_as = [
+  "please define nominal, ordinal, interval, and ratio",
+  "how to understand data scales",
+  "what's a data scale",
+  "difference between nominal and ordinal variables",
+  "can you define the different types of variables and how to categorise them",
+  "what are the four data types",
+]
+body = '''
+- Nominal data are categories with no ranking. You can count frequencies and find the most common category, but can't calculate averages or measure distances between categories.
+- Ordinal data have ranked categories but unequal gaps. You can identify the median and compare relative positions, but the differences between values are not universally defined and comparable.
+- Interval data have equal spacing but no true "absolute" zero - temperature scales or survey scores using standardized scales. The difference between any two values are measurable and comparable.
+- Ratio data have equal spacing and a true "absolute" zero point. This zero indicates None of what's measured by the variable.
+'''
+
+[[concept]]
+id = "describe-quantitative-variable"
+title = "Describing a quantitative variable numerically"
+topic = "describing-one-variable"
+status = "core"
+related = ["mean-interpretation", "standard-deviation", "z-value", "skewness"]
+asked_as = [
+  "how do I describe a variable",
+  "how to conduct a descriptive analysis on a single quantitative variable",
+  "how do we analyze individual variables in more detail",
+  "what are the managerial keywords for describing the center, spread and outliers",
+  "what are the three perspectives for describing data",
+]
+body = '''
+We typically focus on three different perspectives, the center, the spread and the outliers.
+'''
+
+[[concept]]
+id = "mean-interpretation"
+title = "Interpreting the mean of one variable"
+topic = "describing-one-variable"
+status = "core"
+related = ["median-interpretation", "central-tendency-choice"]
+asked_as = [
+  "how to interpret mean",
+  "what does the mean tell me",
+  "what are the correct keywords and context for describing the mean in a memo",
+  "how do I interpret the average",
+]
+body = '''
+The mean can be interpreted as the "typical" value in a given context (context involves what is the variable and unit of measure).
+'''
+
+[[concept]]
+id = "median-interpretation"
+title = "Interpreting the median of a variable"
+topic = "describing-one-variable"
+status = "core"
+related = ["mean-interpretation", "central-tendency-choice", "skewness"]
+asked_as = [
+  "how do I interpret the median",
+  "how do I know which one is the mean and which is the median",
+  "what is the difference between the mean and the median",
+  "when should I use the median instead of the average",
+]
+body = '''
+The median represents the middle value when your data is arranged from lowest to highest - it's the point where 50% of observations fall below and 50% fall above.
+
+The median reveals the "typical" experience of your customers, employees, or business units. Unlike the average, it isn't skewed by extreme outliers, making it particularly valuable for real-world business conditions where data might be heavily skewed.
+'''
+
+[[concept]]
+id = "central-tendency-choice"
+title = "Choosing the best measure of central tendency"
+topic = "describing-one-variable"
+status = "core"
+related = ["mean-interpretation", "median-interpretation", "skewness"]
+asked_as = [
+  "how do you describe central tendency",
+  "what is the best measure of central tendency",
+  "should I use the mean or the median",
+  "when do I use the mode",
+]
+body = '''
+The "best" measure of central tendency depends on your business context and data characteristics.
+- Use the median when dealing with skewed data like salaries, customer spending, or deal sizes where outliers would distort the picture. It shows what most of your business actually experiences.
+- Use the mean (average) when you need to understand total impact or when data is normally distributed. It's essential for financial planning, resource allocation, and forecasting since it accounts for every data point.
+- Use the mode when identifying the most common category or value, such as the most popular product feature, frequent customer complaint, or typical order size.
+'''
+
+[[concept]]
+id = "standard-deviation"
+title = "Interpreting standard deviation"
+topic = "describing-one-variable"
+status = "core"
+related = ["z-value", "describe-quantitative-variable"]
+asked_as = [
+  "what is standard deviation",
+  "remind me how standard deviation works",
+  "keywords for standard deviation in managerial terms",
+  "how do I interpret the standard deviation of a data set",
+  "how far from the mean is one standard deviation",
+]
+body = '''
+Technically: standard means Average, and deviation means the difference between actual data and the typical value (the mean).
+
+Insights: based on empirical rule, about 2/3 or 68% of the observations are within one stdev around the mean. This indicates the most typical range of values.
+'''
+
+[[concept]]
+id = "z-value"
+title = "Using a z-value to judge how extreme a data point is"
+topic = "describing-one-variable"
+status = "core"
+related = ["standard-deviation", "skewness"]
+asked_as = [
+  "how would you interpret a z score of 1.76",
+  "what if the z score is 1, 2 or 3",
+  "which z scores are common, uncommon or rare",
+  "what is the z score formula",
+  "how do I tell if a value is an outlier",
+]
+body = '''
+Z-value measures how many standard deviations a data point is away from the mean. It standardizes different variables onto the same scale for comparison.
+
+Insights: Z-values help identify outliers and benchmark performance across different metrics.
+- |z| > 3 means the data is very unlikely or uncommon
+- 2 < |z| < 3 means the data is unlikely or uncommon
+- 1 < |z| < 2 means the data is likely or common
+- |z| < 1 means the data is very common.
+'''
+
+[[concept]]
+id = "skewness"
+title = "Interpreting skewness"
+topic = "describing-one-variable"
+status = "core"
+related = ["histogram", "median-interpretation", "central-tendency-choice"]
+asked_as = [
+  "what does a skewness of 1.25 mean",
+  "explain the difference between right skewness and left skewness",
+  "how do I interpret the shape and skew of a distribution",
+  "what does right skewed mean",
+]
+body = '''
+Technically: Skewness measures the asymmetry of data distribution - whether values cluster more toward one end of the range, creating a "tail" on the opposite side. Understanding skewness helps choose appropriate benchmarks and realistic targets, since heavily skewed data makes the mean misleading for typical performance expectations.
+
+Business Insights: When interpreting, we focus on two perspectives,
+- where most data are centered on
+- there are "more than expected" (not most) of observations in the skewed side of data.
+'''
+
+[[concept]]
+id = "histogram"
+title = "Using a histogram to visualise one variable"
+topic = "describing-one-variable"
+status = "core"
+related = ["skewness", "standard-deviation"]
+asked_as = [
+  "explain histograms to me",
+  "what does it mean when the observed shape differs from the bell curve",
+  "what is the purpose of a bin in a histogram",
+  "how do I read a histogram",
+]
+body = '''
+We use histogram to visualize one quantitative variable. Specifically, histogram can be compared to normal curve based on empirical rule to identify possible issues in data. If the histogram is skewed, we interpret the skewness by emphasizing the tail with "more than expected ...".
+'''
+
+[[concept]]
+id = "pareto-chart"
+title = "Interpreting a Pareto bar chart"
+topic = "describing-one-variable"
+status = "core"
+asked_as = [
+  "how do I interpret a Pareto bar chart",
+  "is a pareto chart useful for two variables",
+  "does pareto apply when the percentages are close together",
+  "does pareto make sense for categorical values",
+]
+body = '''
+A Pareto chart reveals which factors drive the majority of your business problems or outcomes, helping you prioritize where to focus limited resources for maximum impact. Typically, a small number of categories (around 20%) account for the large majority (around 80%) of the total effect.
+
+Note: given the nominal variable, the 80/20 insight may only partially apply or not at all apply.
+'''
+
+
+# ==========================================================================
+# Class 2 — describing two variables
+# ==========================================================================
+
+[[concept]]
+id = "correlation-two-quantitative"
+title = "Describing the correlation between two quantitative variables"
+topic = "describing-two-variables"
+status = "core"
+related = ["regression-slope-simple"]
+asked_as = [
+  "what correlation value is considered strong",
+  "does correlation tell you strength or direction",
+  "how would you managerially explain the correlation between two variables",
+  "what does the correlation coefficient determine",
+  "how do I interpret r",
+]
+body = '''
+We use scatter plot for visualize and use correlation coefficient r to interpret the strength. Based on the value, the strength can be referred to as weak, moderately weak, moderately strong and strong based on the threshold values of 0.25, 0.5, and 0.75.
+'''
+
+[[concept]]
+id = "association-quantitative-categorical"
+title = "Describing a quantitative variable against a categorical one"
+topic = "describing-two-variables"
+status = "core"
+related = ["association-two-categorical", "regression-coefficient-multiple"]
+asked_as = [
+  "how do I compare group means across categories",
+  "how do I describe a mix of quantitative and categorical variables",
+  "how do I compare the group mean of two categories",
+  "what chart do I use for a quantitative and a categorical variable",
+]
+body = '''
+We use clustered bar chart or diamond plot to compare the group means across the groups formed by the categorical variable.
+'''
+
+[[concept]]
+id = "association-two-categorical"
+title = "Describing the association between two categorical variables"
+topic = "describing-two-variables"
+status = "core"
+related = ["association-quantitative-categorical"]
+asked_as = [
+  "how do I interpret chi square",
+  "how do I describe the association between two categorical variables",
+  "how do I say chi square in managerial terms",
+  "what is a contingency table and a mosaic plot for",
+  "what is Cramer's V",
+]
+body = '''
+We visualize with contingency table or mosaic plot for visualization, and compare the observed frequencies and expected frequencies to get Chi-Square measure. To interpret the strength, we would transform Chi-Square to Cramer's V, which is a similar measure to correlation coefficient and can be interpreted in the same way.
+'''
+
+
+# ==========================================================================
+# Class 3-4 — regression
+# ==========================================================================
+
+[[concept]]
+id = "regression-slope-simple"
+title = "Interpreting the slope of a simple regression"
+topic = "simple-regression"
+status = "core"
+related = ["regression-coefficient-multiple", "p-value", "correlation-two-quantitative"]
+asked_as = [
+  "how to interpret slope in regression",
+  "how to interpret the slope of a simple regression output",
+  "how do I interpret the slope in the context of the data",
+  "what does the slope mean",
+  "how do I interpret a slope between two quantitative variables",
+]
+body = '''
+In simple regression, slope can be interpreted as how much does Y change per unit of X, on average. We can then combine this general format with corresponding context. If the X variable is categorical, we need to focus on the comparison between categories.
+'''
+
+[[concept]]
+id = "regression-coefficient-multiple"
+title = "Interpreting a coefficient in a multiple regression"
+topic = "multiple-regression"
+status = "core"
+related = ["regression-slope-simple", "collinearity-definition", "collinearity-impact"]
+asked_as = [
+  "how do I interpret the regression coefficient",
+  "how do I interpret a multiple regression",
+  "how do I describe individual variables in a multiple regression",
+  "what does controlling for other variables mean",
+]
+body = '''
+The interpretation of regression coefficient in multiple regression is similar to that in simple regression, ex how much does Y change per unit of X, on average. However, due to the existence of other variables in the model, we need to add an additional phrase, such as controlling for other variables in the model.
+'''
+
+
+# ==========================================================================
+# Class 3-5 — hypothesis testing and significance
+# ==========================================================================
+
+[[concept]]
+id = "hypothesis-testing-steps"
+title = "The three steps of hypothesis testing"
+topic = "inference"
+status = "core"
+related = ["null-hypothesis", "significance", "p-value"]
+asked_as = [
+  "what are the steps for hypothesis testing",
+  "explain the hypothesis testing framework",
+  "how does hypothesis testing work",
+]
+body = '''
+There are three steps for Hypothesis testing:
+1. Develop the hypothesis Ho and Ha
+2. Collect Evidence: We collect and analyze data to obtain the right measure of significance
+3. Make conclusion: Compare significance to 5% to reject the Ho
+'''
+
+[[concept]]
+id = "null-hypothesis"
+title = "Developing the null hypothesis"
+topic = "inference"
+status = "core"
+related = ["hypothesis-testing-steps", "significance"]
+asked_as = [
+  "how do I develop the null hypothesis",
+  "what do I write for the null and alternative hypothesis",
+  "what is the null hypothesis in this context",
+]
+body = '''
+Null hypothesis is what we expect things to happen when there is no difference, no effect, no change… The key here is to translate the concept of "nothing" in given context.
+
+Ex: in the context of marketing promotion, "nothing" means the promotion has no impact (on the revenue).
+'''
+
+[[concept]]
+id = "significance"
+title = "Understanding significance"
+topic = "inference"
+status = "core"
+related = ["p-value", "null-hypothesis", "hypothesis-testing-steps"]
+asked_as = [
+  "what does significance mean",
+  "what is the interpretation of a significance value less than 5%",
+  "what does Significance F mean",
+  "what is the interpretation sentence for significance in regression",
+  "what does statistically significant mean",
+]
+body = '''
+Significance describes how likely a sample can be observed given the null hypothesis of the population. The smaller is the significance, the more unlikely to observe our sample, which means the sample is more significantly indicating the true population is different from the expectation based on the null hypothesis.
+'''
+
+[[concept]]
+id = "p-value"
+title = "Interpreting a p-value"
+topic = "inference"
+status = "core"
+related = ["significance", "regression-slope-simple"]
+asked_as = [
+  "what is a p value",
+  "how do I evaluate the significance of a slope",
+  "what is the p value threshold for significance",
+  "what is the difference between the significance of the slope and interpreting the slope",
+  "my p value is less than 0.0001, what does that mean",
+]
+body = '''
+p-value is a special significance for testing slope in regressions. The null hypothesis here is there is no relationship or slope equals to 0. p-value can be compared to 5% the same way as any other significance.
+'''
+
+
+# ==========================================================================
+# Class 5 — model building and collinearity
+# ==========================================================================
+
+[[concept]]
+id = "collinearity-definition"
+title = "What collinearity and multicollinearity are"
+topic = "model-building"
+status = "core"
+related = ["collinearity-impact", "regression-coefficient-multiple"]
+asked_as = [
+  "what does collinearity mean",
+  "when should I be concerned about collinearity",
+  "what is the cut off for collinearity between x variables",
+  "how do I handle collinearity concerns",
+  "do I look at the correlation matrix to determine collinearity",
+]
+body = '''
+Collinearity occurs when the X variables in a model are also correlated with each other. As such the impact of each of the variables are confounded, and simple regression is not enough to differentiate the direct effect of a variable from the indirect effect.
+
+Ex: the size and number of bedrooms of a house is highly correlated. The impact of size on house price can be directly due to larger size and/or due to more bedrooms.
+'''
+
+[[concept]]
+id = "collinearity-impact"
+title = "What collinearity does to your coefficients"
+topic = "model-building"
+status = "core"
+related = ["collinearity-definition", "regression-coefficient-multiple"]
+asked_as = [
+  "what is the impact of collinearity",
+  "why did my coefficient change when I added another variable",
+  "why is my coefficient weaker in multiple regression",
+  "why did my coefficient get stronger",
+]
+body = '''
+Depending on the degree of collinearity, the regression coefficients in simple and multiple regressions are different.
+- If the direct and indirect effects are in the same direction, the multiple regression coefficients will be weaker than that in simple regression. Ex: when using both sqft and bedrooms to predict price.
+- If the direct and indirect effects are in different direction, the multiple regression coefficients will be stronger than that in simple regression. Ex: when using both bedrooms and age to predict price.
+Note that stronger or weaker is referring to the size of the coefficient, not the sign.
+'''

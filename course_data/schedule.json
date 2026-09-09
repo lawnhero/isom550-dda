@@ -1,0 +1,354 @@
+{
+  "generated_at": "2026-09-09T20:43:36Z",
+  "source": "canvas",
+  "course": {
+    "canvas_id": "165666",
+    "code": "FA26_ISOM_550_3201",
+    "name": "ISOM550-DDA-FA26",
+    "term": "Fall 2026",
+    "timezone": "America/New_York",
+    "url": "https://canvas.emory.edu/courses/165666"
+  },
+  "grading_weights": [
+    {
+      "group": "Engagement and Participation ",
+      "weight": 10.0
+    },
+    {
+      "group": "Post-Class Individual Assignments",
+      "weight": 20.0
+    },
+    {
+      "group": "Post-Class Group Assignments",
+      "weight": 20.0
+    },
+    {
+      "group": "Course Assessment",
+      "weight": 50.0
+    }
+  ],
+  "modules": [
+    {
+      "position": 1,
+      "name": "Class 0: Stats Workshop"
+    },
+    {
+      "position": 2,
+      "name": "Software Packages"
+    },
+    {
+      "position": 3,
+      "name": "M1: Descriptive Analytics"
+    },
+    {
+      "position": 4,
+      "name": "M2: Predictive Analytics"
+    }
+  ],
+  "assignments": [
+    {
+      "name": "Pulse Check Survey",
+      "group": "Engagement and Participation ",
+      "kind": "assignment",
+      "due_utc": "2026-08-26T14:00:00Z",
+      "due_local": "Wed Aug 26, 2026, 10:00 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271348",
+      "instructions": "Welcome to ISOM550. \n\nThis survey attempt to collect some background information regarding each student's familiarity with remote learning, readiness with statistics. It is also an opportunity to share your expectation from our class. The results will be used by me for instructional design and improvement purpose only. NO personal information will be shared. \n\nThe survey will take you 5 mins. Please answer all the questions to the best of your abilities. \n\nThank you and see you in class soon."
+    },
+    {
+      "name": "Eastville Part 1 Descriptive",
+      "group": "Post-Class Individual Assignments",
+      "kind": "quiz",
+      "due_utc": "2026-09-02T14:00:00Z",
+      "due_local": "Wed Sep 2, 2026, 10:00 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1272076",
+      "instructions": "Objective:\n\nThis individual class submission is to assess whether students can describe a variable both numerically and graphically. As such, the variables selected for this assignment is \"Price\" and \"School\" based on a short case about a fictional town, Eastville, CT. A description of the situation, and a definition of the data collected, are in this file: Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download) Download Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download). Here is the data in an Excel spreadsheet:Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) Download Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) \n\nTasks: \n\nSpecifically, conduct the following analysis and develop the managerial memo for each analysis. \n\nTask 1: Manually created bins for Price and School District (1 point)\n\nTask 2: Numerical descriptives for \"Price\" and memo on the 3 perspectives, center, spread and extreme values (3 Points)\n\nTask 3: Histogram for \"Price\" and memo on shape of histogram (2 Point)\n\nTask 4: Descriptives for \"School district\" and memo (2 Point)\n\nTask 5: Bar chart for \"School district\" and memo. (2 Point) \n\nHints: Does Pareto bar chart apply here? Can we apply any part of the 20~80 rule?"
+    },
+    {
+      "name": "Describe Relationship Between Two Variables",
+      "group": "Engagement and Participation ",
+      "kind": "quiz",
+      "due_utc": "2026-09-09T14:00:00Z",
+      "due_local": "Wed Sep 9, 2026, 10:00 AM EDT",
+      "points": 7.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1272077",
+      "instructions": "Objective:\n\nThis quiz assesses your understanding of analyzing relationships between two variables across different measurement scales. You will demonstrate your ability to select appropriate graphical displays, interpret numerical measures, and draw objective conclusions from bivariate data analysis.\n\nThere is no time limits. \n\nYou can take the quiz two times. The highest grade will be kept. \n\nYou can review the answers to your questions after each attempt. \n\nIf necessarily, study corresponding materials again before attempting the 2nd time."
+    },
+    {
+      "name": "Group Pilgrim Bank Part 1: Descriptive",
+      "group": "Post-Class Group Assignments",
+      "kind": "quiz",
+      "due_utc": "2026-09-14T03:59:59Z",
+      "due_local": "Sun Sep 13, 2026, 11:59 PM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1272080",
+      "instructions": "Objective:\n\nAlan has to try to address the disagreement about online banking and here is case file Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881) Download Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download)and the data file PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854)Download PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)\n\nThere are a few things to note about columns for Age and Income .\n\nFirst, the two columns are nominal (categorical). In JMP you will be able to add these to the regression model without too much trouble because the modeling type has been changed to nominal. \n\nThe original data does not have Age and Income data for all of the customers. JMP will automatically ignore the rows that have missing customer data.\n\nBefore diving in to the analysis, we should first explore the variables and conduct some basic exploratory data analysis to understand the relationships between variables. \n\nTasks:\n\nSpecifically, conduct the following analysis and include the managerial memo for each analysis. \n\n1: Analyze the relationship between 9Profit and 9Tenure. Generate the graphical and numerical descriptives (2 points)\n\n2: Comment on the correlation (2 Points)\n\n3: Analyze the relationship between 9Profit and 9Online. Generate the graphical and numerical descriptives (2 points)\n\n4: Comment on the relationship (2 Points)\n\n5: comment on Alan’s analysis using only descriptive statistics about online banking. Can you recreate Alan’s result of $110.79 for customers who do not use online banking versus $116.67 for those who do? Does this comparison answer the question about the online banking program? Why? (2 Points)"
+    },
+    {
+      "name": "Eastville Part 2: Simple Regression",
+      "group": "Post-Class Individual Assignments",
+      "kind": "quiz",
+      "due_utc": "2026-09-16T14:00:00Z",
+      "due_local": "Wed Sep 16, 2026, 10:00 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271346",
+      "instructions": "Objective:\n\nThis individual class submission is to assess whether students can describe the relationship between two variables both numerically and graphically, and implement simple regression analysis. As such, the variables selected for this assignment is \"baths\" and \"School\" based on a short case about a fictional town, Eastville, CT. A description of the situation, and a definition of the data collected, are in this file: Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download) Download Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download). Here is the data in an Excel spreadsheet:Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) Download Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) \n\nTasks: \n\nSpecifically, conduct the following analysis and develop the managerial memo for each analysis. \n\nTask 1: Explore the correlation between Price and baths and comment on the correlation (2 points)\n\nTask 2: Develop a simple regression for \"Price\" and baths, and comment on the significance (2 Points)\n\nTask 3: Interpret the slope for baths in the context. (2 Points)\n\nTask 4: Develop a simple regression for \"Price\" and \"School district\", and comment on the significance (2 Points)\n\nTask 5: Interpret the slope \"School district\" in the context. (2 Points)"
+    },
+    {
+      "name": "Group Pilgrim Bank Part 2 - Predictive",
+      "group": "Post-Class Group Assignments",
+      "kind": "quiz",
+      "due_utc": "2026-09-23T14:00:00Z",
+      "due_local": "Wed Sep 23, 2026, 10:00 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271349",
+      "instructions": "Context and Objective:\n\nAlan has to try to address the disagreement about online banking and should prepare a presentation to the senior management team detailing some analysis of the data available about customers. Here is case file Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download) Download Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download)and the data file PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)Download PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)\n\nThere are a few things to note about columns for Age and Income .\n\nFirst, the two columns are nominal (categorical). In JMP you will be able to add these to the regression model without too much trouble because the modeling type has been changed to nominal. \n\nThe original data does not have Age and Income data for all of the customers. JMP will automatically ignore the rows that have missing customer data.\n\nWe will ignore the District data for now and assume there is not much difference between customers in different geographic areas.\n\nIn Group Pilgrim Bank -Descriptive (https://canvas.emory.edu/courses/165666/quizzes/292364), we explored the variables and conducted some basic exploratory data analysis to understand the relationships between variables. In this assignment, we will focus on building linear regression models to understand the profitability of Online customers. \n\nTasks:\n\nSpecifically, do the following analysis and comments on your results. \n\nCreate a simple regression model (all customers) using only the 1999 data for the customer profitability and whether they use the online banking or not. Does this regression model agree with Alan’s result? Does this model support the online banking program?\n\nContinue the analysis on profitability, create a multiple regression model with tenure as well as online banking participation. What do these results tell you about the online banking program?\n\nContinue the analysis on profitability, create a multiple regression model using online banking participation, tenure, age and income. What does the regression results tell you about the online banking program? (No need to interpret the impact of Age and Income for this assignment)\n\nIncluded in the data is information about customer profitability and whether they are online in 2000 as well as tenure, age and income (they don't really change from 1999 to 2000). Does a regression model that uses information for 2000 change your recommendation about the online banking program? \n\nBased on the above analysis, provide two specific recommendations on how Pilgrim Bank should proceed with the online banking product."
+    },
+    {
+      "name": "Group National League Baseball",
+      "group": "Post-Class Group Assignments",
+      "kind": "quiz",
+      "due_utc": "2026-09-28T14:00:00Z",
+      "due_local": "Mon Sep 28, 2026, 10:00 AM EDT",
+      "points": 10.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271350",
+      "instructions": "The purpose of this assignment is for each team to practice implementing and interpreting the results from simple and multiple regression. Please use the file below to complete the assignment, National_League_Runs_Scored.xlsx (https://canvas.emory.edu/courses/165666/files/16656681) Download National_League_Runs_Scored.xlsx (https://canvas.emory.edu/courses/165666/files/16656681/download) and Baseball-Description.docx (https://canvas.emory.edu/courses/165666/files/16656808)Download Baseball-Description.docx (https://canvas.emory.edu/courses/165666/files/16656808/download)\n\nTasks:\n\nConduct one simple and one multiple regression analysis to predict the Runs_Scored for national league baseball teams. and include the managerial memo for each analysis. Specifically, \n\n1: Generate the correlation matrix between all the variables, identify the best single variable to predict Runs_Scored. (2 points)\n\n2: Implement a simple regression between Runs_Scored and the single variable identified in previous question. share the output. (1 Point)\n\n3: Interpret the slope in the previous regression (2 Points)\n\n4: Conduct a multiple regression for Runs_Scored with all the variables and share the output (1 Point)\n\n5: Interpret two slopes from the multiple regression. (2 Points)\n\n6: Do some research on America's favorite pastime, baseball, and comment on whether the insights of these slopes make sense. (1 Point)\n\nPlease have ONE submission Per Group."
+    },
+    {
+      "name": "Group Store24 Analysis",
+      "group": "Post-Class Group Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-10-05T14:00:00Z",
+      "due_local": "Mon Oct 5, 2026, 10:00 AM EDT",
+      "points": 20.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271352",
+      "instructions": "Objective:\n\nIn this project, we're going to build a model to understand the effects of Tenure on profitability. We're also going to work on how to present our findings in a business context rather than load the presentation with technical information. Here is our case file Store24__A___Managing_Employee_Retention-1.pdf (https://canvas.emory.edu/courses/165666/files/16656948). \n\nPart 1: Build a regression model \n\nIn this part, our focus is on building a regression model, specifically, we will do the following:\n\nConduct descriptive analytics on each of the variables. Identify some key information. \n\nConduct descriptive analytics on the variables pair-wise. Identify the best predictor X and identify any concern of collinearity. \n\nRun the best simple regression and briefly discuss the results. \n\nDevelop the final model. Describe briefly the steps. Discuss the final model fit, interpretation of each variable coefficients. \n\nPart 2: Present findings\n\nNow we have completed the analysis for Store24, we have developed many evidences about the impact of Crew tenure as well as Manager tenure on the profitability of a store controlled by other factors. We have critically evaluated and commented on these evidences. Such comments would be what we share with analysts for them to validate our analysis and technical results. The next step, is to communicate these findings to a non-technical people, colleagues from other departments or VPs or the board etc. The objective is not to stress on the analysis but to showcase findings. The language we use should be tailored to the audience. Overall, we need to communicate \"what we found\" but not \"what we did\".\n\nHere is the dataset for store24. Store24-Exhibit3.jmp (https://canvas.emory.edu/courses/165666/files/16656801)\n\nThe following is a possible structure for the slide deck:\n\nthe situation (what) and the complication (why). Some people also like to give audience a preview (an appetizer not the main course) of the findings so that various audience can decide whether they want to stay for the duration (main course). \n\nlogic (basic assumptions)\n\nFindings (sensitivity). this is the main course.\n\nRecommendations (what to do now and what can be done in the future) \n\nHere, I also included an additional example on how to present regression results (https://canvas.emory.edu/courses/165666/pages/an-example-of-presenting-your-findings-from-regression). it should give you some ideas what to do and what to avoid. \n\nWhat to submit:\n\nPlease submit ONE slide deck for presentation and one deck including technical details. The presentation deck should be tailored for a 20-mins presentation to non-technical audience."
+    },
+    {
+      "name": "Individual Drug Reaction",
+      "group": "Post-Class Individual Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-10-27T03:59:59Z",
+      "due_local": "Mon Oct 26, 2026, 11:59 PM EDT",
+      "points": 5.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271354",
+      "instructions": "Objective:\n\nThis individual submission is to assess whether students can implement a logistic regression model and interpret the coefficients in a given context.\n\nA pharmaceutical firm that developed a particular drug for women wants to understand the characteristics that cause some of them to have an adverse reaction to a particular drug . They collect data on 15 women who had such a reaction, and 15 who did not. The variables measured are:\n\nSystolic Blood Pressure \n\nCholesterol Level \n\nAge of the person \n\nPregnant: Whether or not the woman was pregnant (1 = yes).\n\nReaction: Whether or not patient experienced drug reaction? (1 = Yes).\n\nHere is the dataset for this project Drug-Reaction.jmp (https://canvas.emory.edu/courses/165666/files/16656784).\n\nTasks: \n\nSpecifically, conduct the following analysis and include the managerial memo for each analysis. \n\nSlide 1: Describe individual variables. Comment on important points (1 point)\n\nSlide 2: Explore the correlation between appropriate variables. Comment on the findings.\n\nHint: only quantitative and binary nominal variables can have correlation. (2 Points)\n\nSlide 3: Build the best simple logistic regression model. Comment on the findings (2 Points)\n\nSlide 4: Build the final multiple logistic regression model. Comment on the findings (2 Points)\n\nSlide 5: Use the evidence to comment on the variables, the model fit and prediction (2 Points) \n\nWhat to submit:\n\nPlease submit a completed slides with file name as FirstName_LastName_Drug.pptx"
+    },
+    {
+      "name": "Decision Basics Quiz",
+      "group": "Engagement and Participation ",
+      "kind": "quiz",
+      "due_utc": "2026-11-02T15:00:00Z",
+      "due_local": "Mon Nov 2, 2026, 10:00 AM EST",
+      "points": 11.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271347",
+      "instructions": "Please complete this quiz BEFORE next class meeting. \n\nThis quiz is to assess whether you have understood some basic information from the asynchronous learning. Our goal is to get 100%. Here are some general instructions:\n\nThere is no time limits. \n\nYou can take the quiz two times. The highest grade will be kept. \n\nYou can review the answers to your questions after each attempt. \n\nIf necessarily, study corresponding materials again before attempting the 2nd time."
+    },
+    {
+      "name": "Individual BTG Tree",
+      "group": "Post-Class Individual Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-11-09T15:00:00Z",
+      "due_local": "Mon Nov 9, 2026, 10:00 AM EST",
+      "points": 5.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271353",
+      "instructions": "Objective:\n\nThis assignment aims to assess students ability of developing a decision tree in Excel to represent the decision making process for the BTG case.\n\nTasks: \n\nPlease use the Excel file M3-Decision in class to build the tree. Specifically, \n\nSummarize the information given on the spreadsheet. Make sure any relationships between values are linked with simple formulas. \n\nCreate the decision tree. Make sure all inputs, either cash flow or probabilities are linked to the inputs. \n\nExtract from the tree, the expected value for each alternative and the optimal decision. Link the results from the decision tree directly. \n\nWhat to submit:\n\nPlease submit a completed spreadsheet with ONLY the BTG tree and assumptions with file name as FirstName_LastName_BTG.xlsx.\n\nHere is some instructions on saving a copy of a worksheet from a spreadsheet file. (https://support.microsoft.com/en-au/office/save-a-worksheet-34b46819-ee08-43d3-bda6-d3abc6346cd9)"
+    },
+    {
+      "name": "Group BTG-Sensitivity",
+      "group": "Post-Class Group Assignments",
+      "kind": "assignment",
+      "due_utc": "2026-11-23T15:00:00Z",
+      "due_local": "Mon Nov 23, 2026, 10:00 AM EST",
+      "points": 15.0,
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271351",
+      "instructions": "Objective:\n\nThe goal of this project is to examine students' ability to implement sensitivity analysis in Excel with Data Table and Goal Seek. \n\nHere is the Excel BTG-Complete-Tree (https://canvas.emory.edu/courses/165666/files/16656975) for the assignment.\n\nTasks:\n\nPlease conduct sensitivity analysis for the two parameters, 1) probability of zoning approval, and 2) profit for strong demand associated with Summerville alternative of the BTG case. Specifically,\n\nCreate a One-variable data table for probability of zoning approval, and develop the managerial insights. \n\nConduct a Break-even analysis for profit for strong demand, and develop the managerial insights. \n\nCreate a Two-variable data table for the two parameters discussed, and develop the managerial insights. \n\nWhat to submit:\n\nPlease submit ONE slide deck for grading and One Excel file including technical details for reference."
+    }
+  ],
+  "pages": [
+    {
+      "title": "Access and Install JMP from Emory's Software Distribution",
+      "url": "https://canvas.emory.edu/courses/165666/pages/access-and-install-jmp-from-emorys-software-distribution"
+    },
+    {
+      "title": "An example of presenting your findings from regression",
+      "url": "https://canvas.emory.edu/courses/165666/pages/an-example-of-presenting-your-findings-from-regression"
+    },
+    {
+      "title": "Annotated Notes and Recording-550Y",
+      "url": "https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recording-550y"
+    },
+    {
+      "title": "Annotated Notes and Recordings",
+      "url": "https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings"
+    },
+    {
+      "title": "BTG Sensitivity: Suggested Key",
+      "url": "https://canvas.emory.edu/courses/165666/pages/btg-sensitivity-suggested-key"
+    },
+    {
+      "title": "Class 4 Class Materials: Probability and Value of Information",
+      "url": "https://canvas.emory.edu/courses/165666/pages/class-4-class-materials-probability-and-value-of-information"
+    },
+    {
+      "title": "Describe data numerically",
+      "url": "https://canvas.emory.edu/courses/165666/pages/describe-data-numerically"
+    },
+    {
+      "title": "Describe data numerically with Excel",
+      "url": "https://canvas.emory.edu/courses/165666/pages/describe-data-numerically-with-excel"
+    },
+    {
+      "title": "Download and Install JMP Student Edition",
+      "url": "https://canvas.emory.edu/courses/165666/pages/download-and-install-jmp-student-edition"
+    },
+    {
+      "title": "Excel Sensitivity Analysis: Goal Seek Falafel",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-sensitivity-analysis-goal-seek-falafel"
+    },
+    {
+      "title": "Excel Simulation: Linear Regression",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-linear-regression"
+    },
+    {
+      "title": "Excel Simulation: Numerical Descriptive-Toolpak",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-numerical-descriptive-toolpak"
+    },
+    {
+      "title": "Excel Simulation: PivotTable for Data Summarization",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-pivottable-for-data-summarization"
+    },
+    {
+      "title": "Excel-Simulation: Scatter plot- Correlation",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation"
+    },
+    {
+      "title": "Getting started with Excel (Optional)",
+      "url": "https://canvas.emory.edu/courses/165666/pages/getting-started-with-excel-optional"
+    },
+    {
+      "title": "Group Pilgrim Bank: Suggested Keys",
+      "url": "https://canvas.emory.edu/courses/165666/pages/group-pilgrim-bank-suggested-keys"
+    },
+    {
+      "title": "Individual Drug Reaction: Suggested Answers",
+      "url": "https://canvas.emory.edu/courses/165666/pages/individual-drug-reaction-suggested-answers"
+    },
+    {
+      "title": "Install Treeplan Excel Add-in",
+      "url": "https://canvas.emory.edu/courses/165666/pages/install-treeplan-excel-add-in"
+    },
+    {
+      "title": "Interactive Video: Understand the future with probability",
+      "url": "https://canvas.emory.edu/courses/165666/pages/interactive-video-understand-the-future-with-probability"
+    },
+    {
+      "title": "ISOM 550Y DDA",
+      "url": "https://canvas.emory.edu/courses/165666/pages/isom-550y-dda"
+    },
+    {
+      "title": "ISOM550 Course Stream",
+      "url": "https://canvas.emory.edu/courses/165666/pages/isom550-course-stream"
+    },
+    {
+      "title": "JMP Descriptive Stat and Graph",
+      "url": "https://canvas.emory.edu/courses/165666/pages/jmp-descriptive-stat-and-graph"
+    },
+    {
+      "title": "JMP Getting Started",
+      "url": "https://canvas.emory.edu/courses/165666/pages/jmp-getting-started"
+    },
+    {
+      "title": "JMP Regression",
+      "url": "https://canvas.emory.edu/courses/165666/pages/jmp-regression"
+    },
+    {
+      "title": "JMP-Regression",
+      "url": "https://canvas.emory.edu/courses/165666/pages/jmp-regression-2"
+    },
+    {
+      "title": "Probability and Odds, which one to use?",
+      "url": "https://canvas.emory.edu/courses/165666/pages/probability-and-odds-which-one-to-use"
+    },
+    {
+      "title": "Recording: Conditional Probability",
+      "url": "https://canvas.emory.edu/courses/165666/pages/recording-conditional-probability"
+    },
+    {
+      "title": "Regression: Intro to Nonlinear Regression",
+      "url": "https://canvas.emory.edu/courses/165666/pages/regression-intro-to-nonlinear-regression"
+    },
+    {
+      "title": "Regression: Use Categorical data Part 1",
+      "url": "https://canvas.emory.edu/courses/165666/pages/regression-use-categorical-data-part-1"
+    },
+    {
+      "title": "Simulation Excel: Creating Histogram",
+      "url": "https://canvas.emory.edu/courses/165666/pages/simulation-excel-creating-histogram"
+    },
+    {
+      "title": "Simulation: JMP Start and Descriptive",
+      "url": "https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive"
+    }
+  ],
+  "announcements": [
+    {
+      "title": "Class 1.6 (9/9) Applications of Association",
+      "posted_utc": "2026-09-09T20:08:22Z",
+      "posted_local": "Wed Sep 9, 2026, 4:08 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1397604",
+      "body": "Today in class, we review descriptive analytics for the relationship between two variables. Specifically, we think about three things:\n\nWhat do we observe (from the sample)\n\nWhat does it mean (for the population): both statistical and practical\n\nWhat can we do? \n\nIn addition, we discussed the important distinction between Association (ex: Correlation) vs Causation. With descriptive analytics, we observe Association. However, this is not enough evidence to prove causation because there could be many alternative explanations though other MISSING FACTORS. For example: \n\nThe destination in the Airline On-Time Arrival context, or \n\nThe major in the college admission context\n\nWithout considering these important factors, we can't conclude anything. So, the overall principle is: The more we know, the closer we're to the real story. \n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nComplete and submit Group Pilgrim Bank Part 1 (https://canvas.emory.edu/courses/165666/quizzes/292364), due Sunday (9/13), 11:59 PM.\n\nPractice scatter plot in Excel with Excel-Simulation: Scatter plot- Correlation (https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation) \n\nStudy the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive).\n\nStudy the Excel Simulation: Linear Regression (https://canvas.emory.edu/courses/165666/pages/excel-simulation-linear-regression)"
+    },
+    {
+      "title": "Class 1.5 (9/2) Association of Two Categorical Variables",
+      "posted_utc": "2026-09-02T18:16:52Z",
+      "posted_local": "Wed Sep 2, 2026, 2:16 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1394220",
+      "body": "Today in class, we continued to discuss how to describe the association between two variables. Specifically, there are three scenarios: \n\nFor two Quantitative variables, such relationship is called correlation. We use 1) scatter plot and 2) correlation coefficient r. \n\nFor one Categorical x variable and one Quantitative y variable, we use JMP to generate the Diamond graph (or box plot ) and do ANOVA analysis (JMP knows what to do), and observe the group means.\n\nFor TWO Categorical variables, we only observed association. Next class, we will describe it and apply it.\n\nIn addition, we continue to generalize what we observed from the sample to infer about the population. We comment on the questions: should we trust it?\n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nSubmit Relationship between two variables quiz (https://canvas.emory.edu/courses/165666/quizzes/292361) by Wednesday (9/9), 10:00 AM. \n\nPractice scatter plot in Excel with Excel-Simulation: Scatter plot- Correlation (https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation) \n\nStudy the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive).\n\nComplete and submit Group Pilgrim Bank Assignment Part 1 (https://canvas.emory.edu/courses/165666/quizzes/292364), due Friday (9/11), 10:00 AM."
+    },
+    {
+      "title": "Class 1.4 (8/31) When two numbers move together",
+      "posted_utc": "2026-08-31T21:58:56Z",
+      "posted_local": "Mon Aug 31, 2026, 5:58 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1393062",
+      "body": "When two numbers move together\n\nToday we opened the Pilgrim Bank case — is online banking profitable? — then turned to how two quantitative variables relate. Correlation carries two messages: direction (positive or negative) and strength (how tightly the points travel together), read from a scatter plot and the coefficient r.\n\nNext class (Wed 9/2): when a category splits a number.\n\nSlides, notes, and recording are on the notes and recordings page (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings).\n\nAssignments after class:\n\nPractice scatter plot in Excel with Excel-Simulation: Scatter plot- Correlation (https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation).\n\nRemember to download the license file when installing JMP (https://canvas.emory.edu/courses/165666/pages/download-and-install-jmp-student-edition), and study the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive).\n\nComplete and submit Group Pilgrim Bank Assignment Part 1 (https://canvas.emory.edu/courses/165666/quizzes/292364), due before Monday (9/7) class."
+    },
+    {
+      "title": "Class 1.3 (8/28) Bar and Location",
+      "posted_utc": "2026-08-28T18:39:10Z",
+      "posted_local": "Fri Aug 28, 2026, 2:39 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1391966",
+      "body": "How do the house styles break down?\nToday you moved from one number to categories — building bar charts and Pareto charts for style, and seeing that when data skews, the median locates the center better than the mean. The Pareto view drove home the 80/20 rule: most of the frequency comes from just a few categories. You also got your first look at JMP: setting data types and value labels, then Analyze → Distribution.\nNext class (Mon 8/31): when two numbers move together.\nSlides, notes, and recording are on the notes and recordings page (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings).\nAssignments after class:\n\nIndividual Eastville Assignment (https://canvas.emory.edu/courses/165666/assignments/1272076) — due Wed 9/2, 8:30 AM.\nRead the Pilgrim Bank case (https://canvas.emory.edu/courses/165666/files/16656881) and data (https://canvas.emory.edu/courses/165666/files/16656859) — prep for Monday's group work.\nInstall JMP (https://canvas.emory.edu/courses/165666/pages/download-and-install-jmp-student-edition) and review the JMP intro simulation (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive)."
+    },
+    {
+      "title": "Class 1.2 (8/26) Describe One Variable Graphically",
+      "posted_utc": "2026-08-26T19:19:25Z",
+      "posted_local": "Wed Aug 26, 2026, 3:19 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1390266",
+      "body": "Today in class, we discussed how to implement and interpret graphs, such as Histogram (for Quantitative) and Bar Chart (for Categorical, next class).\n\nHistogram offers insights into the observed shape of the data, which is compared to the expected shape from the empirical rule.\n\nIf expected and observed shapes are consistent, then our numerical story checks out.\n\nIf meaningful differences are identified, we might need to identify the reasons, such as missing factors or errors.\n\nIf there is no errors, then we will interpret the skewness.\n\nHINTS: to create the bins, we can use Excel default histogram to get a width for the bins (ex: 236 for sqft). Then we can make judgement call to decide a more appropriate bin size (ex: round up to 250 or round down to 200). \n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nReview simulation on Data Analysis Toolpak (https://canvas.emory.edu/courses/165666/pages/excel-simulation-numerical-descriptive-toolpak) and Excel Histogram (https://canvas.emory.edu/courses/165666/pages/simulation-excel-creating-histogram)\n\nComplete and submit Individual Eastville Assignment (https://canvas.emory.edu/courses/165666/assignments/1272076), due before Wednesday (9/2) class. \n\nStudy the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive)."
+    },
+    {
+      "title": "Class 1.1 (8/24) Describe One Variable Numerically",
+      "posted_utc": "2026-08-24T20:38:14Z",
+      "posted_local": "Mon Aug 24, 2026, 4:38 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1387337",
+      "body": "It's a pleasure meeting everyone today. I'm hopeful that we will have a great time together exploring how to leverage data for decision making. \nToday in class, we reviewed topics from stats workshop, we implemented Analysis ToolPak in Excel to numerically (w. Descriptive Statistics) describe One Quantitative variable . Obtaining these summaries are important, yet our main focus is on how to interpret these evidence in the context to develop a compelling story from data. And the key is to translate their technical meaning into the problem context. \nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \nAssignments after class:\n\nComplete the Pulse Check Survey (https://canvas.emory.edu/courses/165666/quizzes/292221) due before next class.\nReview simulation on Data Analysis Toolpak (https://canvas.emory.edu/courses/165666/pages/excel-simulation-numerical-descriptive-toolpak) (both Toolpak and Excel functions).\nStudy simulation videos on Excel Histogram (https://canvas.emory.edu/courses/165666/pages/simulation-excel-creating-histogram) and JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive)."
+    },
+    {
+      "title": "Getting ready for first day of class Monday 8/24",
+      "posted_utc": "2026-08-21T19:55:51Z",
+      "posted_local": "Fri Aug 21, 2026, 3:55 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1384909",
+      "body": "Good evening all!\n\nIt's been a while since we met during the onboarding week. Hope all of you had a great first two weeks of school. \n\nI'm excited to meet you again next Monday morning and start our semester-long journey together. In our first lecture, we will discuss how to use numerical values to describe data. Here are a few things to help you prepare for class: \n\nWe will be meeting in GBS 204\n\nSection B starts at 10:00 AM; Section A starts at 11:30 AM\n\nPlease bring your laptop with MS Excel installed. See software page for instructions (https://canvas.emory.edu/courses/165666/modules/596376). \n\nClick the link for Module 1 (https://canvas.emory.edu/courses/165666/modules/596377) to download our slide deck for Monday.\n\nSee you all next Monday morning! \n\nProf. Wen Gu"
+    },
+    {
+      "title": "Welcome to ISOM550!",
+      "posted_utc": "2026-08-06T04:20:16Z",
+      "posted_local": "Thu Aug 6, 2026, 12:20 AM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1374367",
+      "body": "It's great meeting everyone today. We demonstrated how to think analytically from a data perspective, then we talked about data scales and discussed how to describe one variable with graphs and statistics. We also emphasized the importance of the mentality of challenging everything you see.\n\nHere is the annotated notes and recordings (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings).\n\nI'm very excited that we will work together on exploring and leveraging data to support business decisions. Before we embark on our journey, please have a look at the syllabus and tentative schedule (https://canvas.emory.edu/courses/165666/assignments/syllabus). For your convenience, here are some highlights:\n\nTextbook: Practical Data Analysis with JMP by Carver. 3rd Edition. Can be purchased through SAS books, or Amazon. Ebook or paper both fine.\n\nCase Packages: Study.netLinks to an external site. (http://study.net/).\n\nSoftware for this course:\n\nMS Excel. Later than 2016 version should be OK. Available through Emory as part of Office 365. Check with GBS IT support or MBA Program office.\n\nJMP from SAS (Student Version). Follow the install instructions here (https://canvas.emory.edu/courses/165666/pages/download-and-install-jmp-student-edition).\n\nTreeplan Excel add-in. Click here to download (https://canvas.emory.edu/courses/165666/files/16656855). Please read the instructions on how to install Treeplan (https://canvas.emory.edu/courses/165666/pages/install-treeplan-excel-add-in). (Group Educational license Paid)\n\nLet me know if you have any questions. My email is wenjun.gu@emory.edu (mailto:Wenjun.gu@emory.edu) and Instagram: @WenGu.Emory (https://www.instagram.com/wengu.emory/).\n\nHave fun with onboarding, and see you in three weeks.\n\nProf. Gu"
+    }
+  ]
+}
