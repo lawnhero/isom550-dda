@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-02T18:19:32Z",
+  "generated_at": "2026-09-09T20:43:36Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -39,6 +39,10 @@
     {
       "position": 3,
       "name": "M1: Descriptive Analytics"
+    },
+    {
+      "position": 4,
+      "name": "M2: Predictive Analytics"
     }
   ],
   "assignments": [
@@ -76,8 +80,8 @@
       "name": "Group Pilgrim Bank Part 1: Descriptive",
       "group": "Post-Class Group Assignments",
       "kind": "quiz",
-      "due_utc": "2026-09-11T14:00:00Z",
-      "due_local": "Fri Sep 11, 2026, 10:00 AM EDT",
+      "due_utc": "2026-09-14T03:59:59Z",
+      "due_local": "Sun Sep 13, 2026, 11:59 PM EDT",
       "points": 10.0,
       "url": "https://canvas.emory.edu/courses/165666/assignments/1272080",
       "instructions": "Objective:\n\nAlan has to try to address the disagreement about online banking and here is case file Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881) Download Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download)and the data file PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854)Download PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)\n\nThere are a few things to note about columns for Age and Income .\n\nFirst, the two columns are nominal (categorical). In JMP you will be able to add these to the regression model without too much trouble because the modeling type has been changed to nominal. \n\nThe original data does not have Age and Income data for all of the customers. JMP will automatically ignore the rows that have missing customer data.\n\nBefore diving in to the analysis, we should first explore the variables and conduct some basic exploratory data analysis to understand the relationships between variables. \n\nTasks:\n\nSpecifically, conduct the following analysis and include the managerial memo for each analysis. \n\n1: Analyze the relationship between 9Profit and 9Tenure. Generate the graphical and numerical descriptives (2 points)\n\n2: Comment on the correlation (2 Points)\n\n3: Analyze the relationship between 9Profit and 9Online. Generate the graphical and numerical descriptives (2 points)\n\n4: Comment on the relationship (2 Points)\n\n5: comment on Alan’s analysis using only descriptive statistics about online banking. Can you recreate Alan’s result of $110.79 for customers who do not use online banking versus $116.67 for those who do? Does this comparison answer the question about the online banking program? Why? (2 Points)"
@@ -205,6 +209,10 @@
       "url": "https://canvas.emory.edu/courses/165666/pages/excel-sensitivity-analysis-goal-seek-falafel"
     },
     {
+      "title": "Excel Simulation: Linear Regression",
+      "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-linear-regression"
+    },
+    {
       "title": "Excel Simulation: Numerical Descriptive-Toolpak",
       "url": "https://canvas.emory.edu/courses/165666/pages/excel-simulation-numerical-descriptive-toolpak"
     },
@@ -257,6 +265,10 @@
       "url": "https://canvas.emory.edu/courses/165666/pages/jmp-regression"
     },
     {
+      "title": "JMP-Regression",
+      "url": "https://canvas.emory.edu/courses/165666/pages/jmp-regression-2"
+    },
+    {
       "title": "Probability and Odds, which one to use?",
       "url": "https://canvas.emory.edu/courses/165666/pages/probability-and-odds-which-one-to-use"
     },
@@ -282,6 +294,13 @@
     }
   ],
   "announcements": [
+    {
+      "title": "Class 1.6 (9/9) Applications of Association",
+      "posted_utc": "2026-09-09T20:08:22Z",
+      "posted_local": "Wed Sep 9, 2026, 4:08 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1397604",
+      "body": "Today in class, we review descriptive analytics for the relationship between two variables. Specifically, we think about three things:\n\nWhat do we observe (from the sample)\n\nWhat does it mean (for the population): both statistical and practical\n\nWhat can we do? \n\nIn addition, we discussed the important distinction between Association (ex: Correlation) vs Causation. With descriptive analytics, we observe Association. However, this is not enough evidence to prove causation because there could be many alternative explanations though other MISSING FACTORS. For example: \n\nThe destination in the Airline On-Time Arrival context, or \n\nThe major in the college admission context\n\nWithout considering these important factors, we can't conclude anything. So, the overall principle is: The more we know, the closer we're to the real story. \n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nComplete and submit Group Pilgrim Bank Part 1 (https://canvas.emory.edu/courses/165666/quizzes/292364), due Sunday (9/13), 11:59 PM.\n\nPractice scatter plot in Excel with Excel-Simulation: Scatter plot- Correlation (https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation) \n\nStudy the simulation on JMP Introduction and Descriptive (https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive).\n\nStudy the Excel Simulation: Linear Regression (https://canvas.emory.edu/courses/165666/pages/excel-simulation-linear-regression)"
+    },
     {
       "title": "Class 1.5 (9/2) Association of Two Categorical Variables",
       "posted_utc": "2026-09-02T18:16:52Z",
