@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-09T20:43:36Z",
+  "generated_at": "2026-09-14T20:25:18Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -294,6 +294,13 @@
     }
   ],
   "announcements": [
+    {
+      "title": "Class 2.1 (9/14) Slope from Regression",
+      "posted_utc": "2026-09-14T20:23:08Z",
+      "posted_local": "Mon Sep 14, 2026, 4:23 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1399447",
+      "body": "Today in class, we introduced \"slope\" which describes the \"size\" of impact for x on y. Specifically, we worked on the following:\n\nDifferentiate \"slope\" (how much) from \"strength\" (how trustworthy). \n\nImplement simple linear regression for a quantitative X and a binary categorical X. \n\nInterpret the slope in a given context following \"rise over run on average\". Depending on the variable, we need to pay attention to the \"run\"\n\nQuantitative X: per unit of X\n\nBinary X: compare \"1\" group vs \"0\" Group. \n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nComplete Eastville Part 2: Simple Regression. (https://canvas.emory.edu/courses/165666/quizzes/292219) Due before Wednesday (9/16) class. Hint: challenge yourself and find out what evidence to use to evaluate the significance of a regression. \n\nPractice scatter plot in Excel with Excel-Simulation: Scatter plot- Correlation (https://canvas.emory.edu/courses/165666/pages/excel-simulation-scatter-plot-correlation) \n\nStudy the Excel Simulation: Linear Regression (https://canvas.emory.edu/courses/165666/pages/excel-simulation-linear-regression)\n\nStudy JMP regression JMP Regression (https://canvas.emory.edu/courses/165666/pages/jmp-regression)"
+    },
     {
       "title": "Class 1.6 (9/9) Applications of Association",
       "posted_utc": "2026-09-09T20:08:22Z",
