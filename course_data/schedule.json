@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-14T20:25:18Z",
+  "generated_at": "2026-09-17T21:23:18Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -294,6 +294,13 @@
     }
   ],
   "announcements": [
+    {
+      "title": "Class 2.2 (9/16) Significance of a Hypothesis Test",
+      "posted_utc": "2026-09-16T19:06:30Z",
+      "posted_local": "Wed Sep 16, 2026, 3:06 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1400483",
+      "body": "Today in class, we continued our discussion on significance by exploring the general process for Hypothesis Testing. Specifically, we consider 3 steps:\n\nFormulate hypothesis with focus on Null (Ho):\n\nHo means there is nothing of what we're trying to investigate, ex: no difference, no impact, no relationship, or no change. \n\nCollect evidence: from data to analysis, eventually to significance, which is the probability of observing such a sample\n\nThe further away from Ho, the smaller is the probability of observing. \n\nMake conclusion: either Reject or Fail to Reject the Null. \n\nCompare to our \"resonable doubt\" of 5%.\n\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today. \n\nAssignments after class:\n\nStudy the JMP simulation on regression (https://canvas.emory.edu/courses/165666/pages/jmp-regression)\n\nStudy the Excel Simulation: Linear Regression (https://canvas.emory.edu/courses/165666/pages/excel-simulation-linear-regression)"
+    },
     {
       "title": "Class 2.1 (9/14) Slope from Regression",
       "posted_utc": "2026-09-14T20:23:08Z",
