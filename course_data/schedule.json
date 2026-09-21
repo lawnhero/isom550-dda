@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-17T21:23:18Z",
+  "generated_at": "2026-09-21T19:02:40Z",
   "source": "canvas",
   "course": {
     "canvas_id": "165666",
@@ -97,24 +97,24 @@
       "instructions": "Objective:\n\nThis individual class submission is to assess whether students can describe the relationship between two variables both numerically and graphically, and implement simple regression analysis. As such, the variables selected for this assignment is \"baths\" and \"School\" based on a short case about a fictional town, Eastville, CT. A description of the situation, and a definition of the data collected, are in this file: Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download) Download Eastville.docx (https://canvas.emory.edu/courses/165666/files/16656882/download). Here is the data in an Excel spreadsheet:Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) Download Eastville.xlsx (https://canvas.emory.edu/courses/165666/files/16656710/download) \n\nTasks: \n\nSpecifically, conduct the following analysis and develop the managerial memo for each analysis. \n\nTask 1: Explore the correlation between Price and baths and comment on the correlation (2 points)\n\nTask 2: Develop a simple regression for \"Price\" and baths, and comment on the significance (2 Points)\n\nTask 3: Interpret the slope for baths in the context. (2 Points)\n\nTask 4: Develop a simple regression for \"Price\" and \"School district\", and comment on the significance (2 Points)\n\nTask 5: Interpret the slope \"School district\" in the context. (2 Points)"
     },
     {
-      "name": "Group Pilgrim Bank Part 2 - Predictive",
+      "name": "Group National League Baseball",
       "group": "Post-Class Group Assignments",
       "kind": "quiz",
       "due_utc": "2026-09-23T14:00:00Z",
       "due_local": "Wed Sep 23, 2026, 10:00 AM EDT",
       "points": 10.0,
-      "url": "https://canvas.emory.edu/courses/165666/assignments/1271349",
-      "instructions": "Context and Objective:\n\nAlan has to try to address the disagreement about online banking and should prepare a presentation to the senior management team detailing some analysis of the data available about customers. Here is case file Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download) Download Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download)and the data file PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)Download PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)\n\nThere are a few things to note about columns for Age and Income .\n\nFirst, the two columns are nominal (categorical). In JMP you will be able to add these to the regression model without too much trouble because the modeling type has been changed to nominal. \n\nThe original data does not have Age and Income data for all of the customers. JMP will automatically ignore the rows that have missing customer data.\n\nWe will ignore the District data for now and assume there is not much difference between customers in different geographic areas.\n\nIn Group Pilgrim Bank -Descriptive (https://canvas.emory.edu/courses/165666/quizzes/292364), we explored the variables and conducted some basic exploratory data analysis to understand the relationships between variables. In this assignment, we will focus on building linear regression models to understand the profitability of Online customers. \n\nTasks:\n\nSpecifically, do the following analysis and comments on your results. \n\nCreate a simple regression model (all customers) using only the 1999 data for the customer profitability and whether they use the online banking or not. Does this regression model agree with Alan’s result? Does this model support the online banking program?\n\nContinue the analysis on profitability, create a multiple regression model with tenure as well as online banking participation. What do these results tell you about the online banking program?\n\nContinue the analysis on profitability, create a multiple regression model using online banking participation, tenure, age and income. What does the regression results tell you about the online banking program? (No need to interpret the impact of Age and Income for this assignment)\n\nIncluded in the data is information about customer profitability and whether they are online in 2000 as well as tenure, age and income (they don't really change from 1999 to 2000). Does a regression model that uses information for 2000 change your recommendation about the online banking program? \n\nBased on the above analysis, provide two specific recommendations on how Pilgrim Bank should proceed with the online banking product."
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271350",
+      "instructions": "The purpose of this assignment is for each team to practice implementing and interpreting the results from simple and multiple regression. Please use the file below to complete the assignment, National_League_Runs_Scored.xlsx (https://canvas.emory.edu/courses/165666/files/16656681) Download National_League_Runs_Scored.xlsx (https://canvas.emory.edu/courses/165666/files/16656681/download) and Baseball-Description.docx (https://canvas.emory.edu/courses/165666/files/16656808)Download Baseball-Description.docx (https://canvas.emory.edu/courses/165666/files/16656808/download)\n\nTasks:\n\nConduct one simple and one multiple regression analysis to predict the Runs_Scored for national league baseball teams. and include the managerial memo for each analysis. Specifically, \n\n1: Generate the correlation matrix between all the variables, identify the best single variable to predict Runs_Scored. (2 points)\n\n2: Implement a simple regression between Runs_Scored and the single variable identified in previous question. share the output. (1 Point)\n\n3: Interpret the slope in the previous regression (2 Points)\n\n4: Conduct a multiple regression for Runs_Scored with all the variables and share the output (1 Point)\n\n5: Interpret two slopes from the multiple regression. (2 Points)\n\n6: Do some research on America's favorite pastime, baseball, and comment on whether the insights of these slopes make sense. (1 Point)\n\nPlease have ONE submission Per Group."
     },
     {
-      "name": "Group National League Baseball",
+      "name": "Group Pilgrim Bank Part 2 - Predictive",
       "group": "Post-Class Group Assignments",
       "kind": "quiz",
       "due_utc": "2026-09-28T14:00:00Z",
       "due_local": "Mon Sep 28, 2026, 10:00 AM EDT",
       "points": 10.0,
-      "url": "https://canvas.emory.edu/courses/165666/assignments/1271350",
-      "instructions": "The purpose of this assignment is for each team to practice implementing and interpreting the results from simple and multiple regression. Please use the file below to complete the assignment, National_League_Runs_Scored.xlsx (https://canvas.emory.edu/courses/165666/files/16656681) Download National_League_Runs_Scored.xlsx (https://canvas.emory.edu/courses/165666/files/16656681/download) and Baseball-Description.docx (https://canvas.emory.edu/courses/165666/files/16656808)Download Baseball-Description.docx (https://canvas.emory.edu/courses/165666/files/16656808/download)\n\nTasks:\n\nConduct one simple and one multiple regression analysis to predict the Runs_Scored for national league baseball teams. and include the managerial memo for each analysis. Specifically, \n\n1: Generate the correlation matrix between all the variables, identify the best single variable to predict Runs_Scored. (2 points)\n\n2: Implement a simple regression between Runs_Scored and the single variable identified in previous question. share the output. (1 Point)\n\n3: Interpret the slope in the previous regression (2 Points)\n\n4: Conduct a multiple regression for Runs_Scored with all the variables and share the output (1 Point)\n\n5: Interpret two slopes from the multiple regression. (2 Points)\n\n6: Do some research on America's favorite pastime, baseball, and comment on whether the insights of these slopes make sense. (1 Point)\n\nPlease have ONE submission Per Group."
+      "url": "https://canvas.emory.edu/courses/165666/assignments/1271349",
+      "instructions": "Context and Objective:\n\nAlan has to try to address the disagreement about online banking and should prepare a presentation to the senior management team detailing some analysis of the data available about customers. Here is case file Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download) Download Pilgrim_Profitability.pdf (https://canvas.emory.edu/courses/165666/files/16656881/download)and the data file PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)Download PilgrimBankData.jmp (https://canvas.emory.edu/courses/165666/files/16656854/download)\n\nThere are a few things to note about columns for Age and Income .\n\nFirst, the two columns are nominal (categorical). In JMP you will be able to add these to the regression model without too much trouble because the modeling type has been changed to nominal. \n\nThe original data does not have Age and Income data for all of the customers. JMP will automatically ignore the rows that have missing customer data.\n\nWe will ignore the District data for now and assume there is not much difference between customers in different geographic areas.\n\nIn Group Pilgrim Bank -Descriptive (https://canvas.emory.edu/courses/165666/quizzes/292364), we explored the variables and conducted some basic exploratory data analysis to understand the relationships between variables. In this assignment, we will focus on building linear regression models to understand the profitability of Online customers. \n\nTasks:\n\nSpecifically, do the following analysis and comments on your results. \n\nCreate a simple regression model (all customers) using only the 1999 data for the customer profitability and whether they use the online banking or not. Does this regression model agree with Alan’s result? Does this model support the online banking program?\n\nContinue the analysis on profitability, create a multiple regression model with tenure as well as online banking participation. What do these results tell you about the online banking program?\n\nContinue the analysis on profitability, create a multiple regression model using online banking participation, tenure, age and income. What does the regression results tell you about the online banking program? (No need to interpret the impact of Age and Income for this assignment)\n\nIncluded in the data is information about customer profitability and whether they are online in 2000 as well as tenure, age and income (they don't really change from 1999 to 2000). Does a regression model that uses information for 2000 change your recommendation about the online banking program? \n\nBased on the above analysis, provide two specific recommendations on how Pilgrim Bank should proceed with the online banking product."
     },
     {
       "name": "Group Store24 Analysis",
@@ -289,11 +289,43 @@
       "url": "https://canvas.emory.edu/courses/165666/pages/simulation-excel-creating-histogram"
     },
     {
+      "title": "Simulation Regression- Collinearity Direction",
+      "url": "https://canvas.emory.edu/courses/165666/pages/simulation-regression-collinearity-direction"
+    },
+    {
       "title": "Simulation: JMP Start and Descriptive",
       "url": "https://canvas.emory.edu/courses/165666/pages/simulation-jmp-start-and-descriptive"
     }
   ],
   "announcements": [
+    {
+      "title": "Class 2.4 (9/21) Collinearity in Multiple Regression",
+      "posted_utc": "2026-09-21T18:05:47Z",
+      "posted_local": "Mon Sep 21, 2026, 2:05 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1402193",
+      "body": "Today we tackled collinearity — when two predictors move together and it gets hard to tell which one is really driving Y. Two pictures help: the Venn diagram shows how much two Xs overlap (their shared variation), and the influence diagram shows whether that overlap makes a coefficient bigger or smaller once you control for it.\nHere is the course notes and recording (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings) for today.\nAssignments after class:\n\nStudy the Simulation Regression — Collinearity Direction (https://canvas.emory.edu/courses/165666/pages/simulation-regression-collinearity-direction)\nGroup National League Baseball (https://canvas.emory.edu/courses/165666/assignments/1271350) — due Wednesday 9/23, 10:00 AM"
+    },
+    {
+      "title": "Class 2.3 (9/18) Multiple Regression",
+      "posted_utc": "2026-09-18T15:34:26Z",
+      "posted_local": "Fri Sep 18, 2026, 11:34 AM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1401288",
+      "body": "Class 2.3: Multiple Regression\nLast class you asked whether a relationship is significant or random. Today you added more predictors and hit the point of multiple: a variable’s coefficient changes when you hold the others constant — sqft’s price effect dropped from $142.85 to $117.94 per sqft once baths, beds, and age joined the model.\nNext class (Mon 9/21): when predictors overlap, who gets the credit?\nSlides and recording are on the notes and recordings page (https://canvas.emory.edu/courses/165666/pages/annotated-notes-and-recordings).\nAfter class assignments\n\nGroup National League Baseball (https://canvas.emory.edu/courses/165666/assignments/1271350) — due Wed 9/23, 10:00 AM. Run a regression to predict runs scored."
+    },
+    {
+      "title": "Class 2.3 (9/18) — confirmed 8:30 AM",
+      "posted_utc": "2026-09-18T11:58:45Z",
+      "posted_local": "Fri Sep 18, 2026, 7:58 AM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1401176",
+      "body": "Quick update: today’s session is confirmed for 8:30 AM (switched with Prof. Renne). Still on Zoom — join here: Zoom meeting (https://emory.zoom.us/j/98325981002). See you soon."
+    },
+    {
+      "title": "Class 2.3 (9/18) — Friday via Zoom (10:00 AM, may shift to 8:30)",
+      "posted_utc": "2026-09-18T03:39:21Z",
+      "posted_local": "Thu Sep 17, 2026, 11:39 PM EDT",
+      "url": "https://canvas.emory.edu/courses/165666/discussion_topics/1401159",
+      "body": "Friday morning's class will be held on Zoom rather than in person. Join here: Zoom meeting (https://emory.zoom.us/j/98325981002).\nOur class is scheduled for 10:00 AM, but there is a possibility we switch with Prof. Renne to 8:30 AM. I will confirm at 8:00 AM tomorrow. Thank you for your patience."
+    },
     {
       "title": "Class 2.2 (9/16) Significance of a Hypothesis Test",
       "posted_utc": "2026-09-16T19:06:30Z",
